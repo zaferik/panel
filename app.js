@@ -614,6 +614,7 @@ V.sertifika = async view => {
   const isg = SF.sablon === 'isg';
   const inp = (id, lbl, val = '', ex = '') => `<label>${lbl}<input id="${id}" value="${esc(val)}" ${ex}></label>`;
   view.innerHTML = `<h2>Sertifika Üret</h2><p class="sub">Eğitimi ve katılımcıları seçin; belgeler şablonunuzla oluşturulur, SHGM sertifikalarına sıradaki belge numarası verilir. Personel kendi belgelerini <b>Sertifikalarım</b> ekranından indirebilir.</p>
+  <div id="s_bekleyen"></div>
   <div class="grid g2">
     <div class="panel"><h3>1 · Eğitim</h3>
       <div class="seg" id="ssab" style="margin-bottom:12px">${['shgm', 'isg'].map(k => `<button type="button" data-v="${k}" class="${SF.sablon === k ? 'on' : ''}">${SABLON_AD[k]}</button>`).join('')}</div>
@@ -739,6 +740,77 @@ V.sertifika = async view => {
     await Sertifika.yazdir(data, { imzasiz: !SF.imzali });
     setTimeout(() => { V.sertifika(view).then(() => { $('s_msg').innerHTML = `<div class="msg ok">${data.length} belge oluşturuldu${nolar.length ? ` (${nolar[0]}${nolar.length > 1 ? ' – ' + nolar[nolar.length - 1] : ''})` : ''}. Tekrar yazdırmak için aşağıdaki listeyi kullanın.</div>`; }); }, 400);
   };
+  // --- Excel'den gelen eğitimler: sertifikası henüz düzenlenmemiş iç eğitimler
+  if (SF.on) { const o = SF.on; SF.on = null; const set = (id, v) => { const el = $(id); if (el && v != null) el.value = v; };
+    set('s_egt', o.egitim); set('s_t1', o.bas || o.bit); set('s_t2', o.bas && o.bas !== o.bit ? o.bit : ''); set('s_saat', o.saat == null ? '' : o.saat); set('s_egm', o.egitmen);
+    $('s_msg').innerHTML = `<div class="msg info">Excel'deki eğitim forma aktarıldı ve ${SF.sec.size} katılımcı seçildi. Bilgileri kontrol edip <b>Belgeleri oluştur ve yazdır</b>'a basın.</div>`; $('sform').scrollIntoView({ block: 'center' }); }
+  const BF2 = SF.byil || String(TODAY.getFullYear());
+  const bekleyenler = () => {
+    const ST_W = new Set(['egitimi', 'egitim', 've', 'ile', 'temel', 'tazeleme', 'kursu', 'kurs']);
+    const tok = t => new Set(fold(t || '').split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !ST_W.has(w)));
+    const sablonOf = h => h[2] ? 'shgm' : /is sagligi|\bisg\b/.test(fold(h[1] || '')) ? 'isg' : null;
+    const icMi = h => !/dis/.test(fold(h[5] || ''));
+    const basMap = DATA.rapor.egitim_baslangic || {};
+    const nk2 = t => String(t || '').trim().toLocaleUpperCase('tr-TR').replace(/İ/g, 'I').replace(/Ş/g, 'S').replace(/Ğ/g, 'G').replace(/Ü/g, 'U').replace(/Ö/g, 'O').replace(/Ç/g, 'C').replace(/\./g, '').replace(/\s+/g, ' ');
+    const certBy = {}; B.filter(b => !b.iptal && b.sicil).forEach(b => (certBy[b.sicil] = certBy[b.sicil] || []).push(b));
+    const G = new Map();
+    DATA.P.forEach(p => p.H.forEach(h => {
+      const tarih = String(h[0] || ''); if (!/^\d{4}-\d{2}-\d{2}$/.test(tarih) || tarih.slice(0, 4) !== BF2) return;
+      const sab = sablonOf(h); if (!sab || !icMi(h)) return;
+      const bas = basMap[nk2(h[1]) + '|' + tarih] || null;
+      const T = tok(h[1]);
+      const var_ = (certBy[p.sicil] || []).some(b => b.sablon === sab && (b.tarih === tarih || b.tarih === bas || (b.tarih <= tarih && (b.tarih_bitis || b.tarih) >= tarih))
+        && ([...tok(b.egitim)].some(w => T.has(w)) || !T.size));
+      const key = [sab, h[1], tarih, h[4] || ''].join('|');
+      const g = G.get(key) || { sab, egitim: h[1], bit: tarih, bas, saat: h[3], egitmen: h[4] || '', hepsi: [], eksik: [] };
+      g.hepsi.push(p.sicil); if (!var_) g.eksik.push(p.sicil); G.set(key, g);
+    }));
+    const gizli = new Set(((AYAR.sb_gizli || {}).keys) || []);
+    return [...G.values()].map(g => ({ ...g, key: [g.sab, g.egitim, g.bit, g.egitmen].join('|') })).filter(g => g.eksik.length && !gizli.has(g.key)).sort((a, b) => b.bit.localeCompare(a.bit));
+  };
+  const bekleyenCiz = () => {
+    const L = bekleyenler(), yil = [...new Set(DATA.P.flatMap(p => p.H.map(h => String(h[0] || '').slice(0, 4))).filter(y => /^\d{4}$/.test(y)))].sort().reverse().slice(0, 6);
+    const tr = t => t ? fd(t) : '';
+    $('s_bekleyen').innerHTML = `<div class="panel sb-panel" style="margin-bottom:16px"><div class="sb-bas"><h3>Excel'den gelen eğitimler · sertifikası düzenlenmemiş <span class="pill ${L.length ? 'p-bekliyor' : 'p-onaylandi'}">${L.reduce((a, g) => a + g.eksik.length, 0)} kişi</span></h3>
+      <select id="sb_yil">${yil.map(y => `<option ${y === BF2 ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
+      <p class="mini" style="margin:-4px 0 10px">SHGM Eğitim Takip dosyasındaki <b>iç eğitimler</b> burada listelenir: SHGM eğitimleri için numaralı SHGM sertifikası, Temel İSG için katılım belgesi. Dış eğitimlerin belgesini eğitim firması verir.</p>
+      ${L.length ? `<div class="sb-liste">${L.map((g, i) => `<div class="sb-satir"><div><b>${esc(g.egitim)}</b><span class="mini">${tr(g.bas)}${g.bas ? ' – ' : ''}${tr(g.bit)} · ${esc(g.egitmen || 'eğitimci yok')}${g.saat ? ' · ' + fn(g.saat, 1) + ' saat' : ''} · ${SABLON_AD[g.sab]}</span>
+          <span class="mini">${g.eksik.slice(0, 6).map(s => esc((DATA.byS[s] || {}).ad || s)).join(', ')}${g.eksik.length > 6 ? ` +${g.eksik.length - 6}` : ''}${g.hepsi.length > g.eksik.length ? ` · <i>${g.hepsi.length - g.eksik.length} kişinin belgesi zaten var</i>` : ''}</span></div>
+          <div class="actions"><button class="btn sm" data-sbg="${i}" title="Bu eğitimin belgeleri panel dışında verildiyse listeden çıkarır">Belgesi verildi</button><button class="btn sm" data-sba="${i}">Forma aktar</button><button class="btn sm pri" data-sbu="${i}">${g.eksik.length} belge üret</button></div></div>`).join('')}</div>
+        <div class="actions" style="margin-top:10px"><button class="btn" id="sb_hep">Hepsini üret (${L.reduce((a, g) => a + g.eksik.length, 0)} belge)</button></div>`
+      : `<p class="mini">${BF2} yılı için sertifikası eksik iç eğitim yok.</p>`}</div>`;
+    $('sb_yil').onchange = e => { SF.byil = e.target.value; bekleyenCiz(); };
+    $('s_bekleyen').querySelectorAll('[data-sba]').forEach(b => b.onclick = () => { const g = L[+b.dataset.sba];
+      SF.sablon = g.sab; SF.sec = new Set(g.eksik); SF.on = g; V.sertifika(view); });
+    const uret = async grup => {
+      let n = 0, nolar = [];
+      for (const g of grup) {
+        const A2 = g.sab === 'isg' ? { ...A.isg } : { ...A.shgm, egitmen: g.egitmen };
+        if (g.sab === 'shgm' && !g.egitmen) throw new Error(`${g.egitim} (${fd(g.bit)}) için Excel'de eğitimci adı yok; "Forma aktar" ile eğitimciyi yazarak üretin.`);
+        const kisiler = g.eksik.map(s => DATA.byS[s]).filter(Boolean).map(p => ({ sicil: p.sicil, ad: p.ad, unvan: p.unvan || '' }));
+        const { data, error } = await sb.rpc('sertifika_uret', { p: { sablon: g.sab, egitim: g.egitim, tarih: g.bas || g.bit, tarih_bitis: g.bas && g.bas !== g.bit ? g.bit : null,
+          saat: g.saat == null ? (g.sab === 'isg' ? A.isg.saat || 8 : null) : Number(g.saat), alanlar: A2, kisiler } });
+        if (error) throw new Error(`${g.egitim}: ${error.message}`);
+        n += data.length; nolar.push(...data.filter(d => d.seri_no).map(d => d.seri_no));
+      }
+      return { n, nolar };
+    };
+    const onayla = grup => { const n = grup.reduce((a, g) => a + g.eksik.length, 0), sh = grup.filter(g => g.sab === 'shgm').reduce((a, g) => a + g.eksik.length, 0);
+      modal(`<h3>${n} belge üretilsin mi?</h3><p>${grup.length} eğitim için ${n} belge oluşturulacak.${sh ? ` SHGM sertifikalarına sıradaki ${sh} numara verilecek.` : ''} Personel belgelerini <b>Sertifikalarım</b> ekranında görür.</p><div id="sb_m"></div>
+        <div class="acts"><button class="btn" data-close>Vazgeç</button><button class="btn pri" id="sb_evet">Üret</button></div>`, (bg, close) => {
+        bg.querySelector('#sb_evet').onclick = async e => { e.target.disabled = true; e.target.textContent = 'Üretiliyor…';
+          try { const r = await uret(grup); close(); await V.sertifika(view); $('s_msg').innerHTML = `<div class="msg ok">${r.n} belge oluşturuldu${r.nolar.length ? ` (${r.nolar[0]}${r.nolar.length > 1 ? ' – ' + r.nolar[r.nolar.length - 1] : ''})` : ''}. Yazdırmak için aşağıdaki listeyi kullanın.</div>`; }
+          catch (er) { bg.querySelector('#sb_m').innerHTML = `<div class="msg err">${esc(er.message)}</div>`; e.target.disabled = false; e.target.textContent = 'Üret'; await V.sertifika(view); } }; }); };
+    $('s_bekleyen').querySelectorAll('[data-sbg]').forEach(b => b.onclick = () => { const g = L[+b.dataset.sbg];
+      modal(`<h3>Listeden çıkarılsın mı?</h3><p><b>${esc(g.egitim)}</b> (${fd(g.bit)}) eğitiminin belgeleri panel dışında verildiyse bu eğitimi listeden çıkarın. Yeni belge üretilmez.</p>
+        <div class="acts"><button class="btn" data-close>Vazgeç</button><button class="btn pri" id="sbg_evet">Listeden çıkar</button></div>`, (bg, close) => {
+        bg.querySelector('#sbg_evet').onclick = async () => { const keys = [...new Set([...(((AYAR.sb_gizli || {}).keys) || []), g.key])];
+          const { error } = await sb.from('sertifika_ayar').upsert({ anahtar: 'sb_gizli', deger: { keys }, updated_at: new Date().toISOString() });
+          close(); if (error) { alertMsg(error.message); return; } AYAR.sb_gizli = { keys }; bekleyenCiz(); }; }); });
+    $('s_bekleyen').querySelectorAll('[data-sbu]').forEach(b => b.onclick = () => onayla([L[+b.dataset.sbu]]));
+    const hep = $('sb_hep'); if (hep) hep.onclick = () => onayla(L);
+  };
+  bekleyenCiz();
   // --- verilen belgeler listesi
   const sirala = (a, b) => (b.tarih || '').localeCompare(a.tarih || '') || (b.yil || 0) - (a.yil || 0) || (b.sira || 0) - (a.sira || 0) || b.id - a.id;
   let gor = [];

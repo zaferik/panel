@@ -418,3 +418,9 @@ body.onizleme header.top{box-shadow:inset 0 -3px 0 #1d1d1f}
 body.onizleme [data-karar],body.onizleme [data-onay],body.onizleme [data-red],body.onizleme [data-kaldir],body.onizleme [data-sk],body.onizleme [data-iptal],
 body.onizleme label:has(> input[data-yukle]),body.onizleme .ek-sekme [data-s="duzen"]{display:none!important}
 body.onizleme form button[type=submit]{pointer-events:none;opacity:.45}
+/* sertifikası bekleyen eğitimler */
+.sb-bas{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}.sb-bas h3{margin:0;margin-right:auto}
+.sb-liste{display:grid;border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:420px;overflow-y:auto}
+.sb-satir{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--line)}
+.sb-satir:first-child{border-top:0}.sb-satir>div:first-child{display:flex;flex-direction:column;min-width:0}
+@media (max-width:640px){.sb-satir{flex-direction:column;align-items:stretch}}
