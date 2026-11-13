@@ -631,3 +631,10 @@ a.ok-kart:hover{border-color:color-mix(in srgb,var(--brand) 45%,var(--line));tra
 @media (max-width:640px){.v-h{width:88px}}
 .v-tablo tbody td{height:50px}.v-tablo tbody td .v-h{height:100%}
 #v_ozet td:first-child{white-space:nowrap}
+.v-ucak{display:block;font-style:normal;font-size:10px;font-weight:700;color:var(--brand);margin-top:1px}
+.v-oto-bas{display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line);padding-top:12px;margin-top:4px}
+.v-iht{width:100%;border-collapse:collapse;font-size:13.5px}.v-iht th,.v-iht td{padding:5px 6px;border-bottom:1px solid var(--line);text-align:left}
+.v-iht input{width:90px;padding:6px 8px;border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--fg);font:inherit}
+.v-sefer summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px}.v-sefer summary::-webkit-details-marker{display:none}
+.v-sefer summary h3{margin:0}
+.modal .v-cb{display:flex;align-items:flex-start;gap:8px;margin:8px 0;font-size:14px}.modal .v-cb input{margin-top:3px;accent-color:var(--brand)}

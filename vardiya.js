@@ -45,7 +45,7 @@ function vrHesap(degerler, ayar, ayBas) {
   const hBas = -wd;                                // 1. haftanın pazartesisi (ayın 1'ine göre gün)
   const haftaNo = g => Math.min(6, Math.max(1, Math.floor((g - hBas) / 7) + 1));
   const G = []; let sonE = null, sonCum = null;
-  const T = { gun: 0, gece: 0, net: 0, gfm: 0, hafta: [0, 0, 0, 0, 0, 0], hata: 0, dinlenme: 0 };
+  const T = { gun: 0, gece: 0, hs: 0, net: 0, gfm: 0, hafta: [0, 0, 0, 0, 0, 0], hata: 0, dinlenme: 0 };
   degerler.forEach((v, d) => {
     const c = vrCoz(v), r = { ...c, gece: false, gfm: 0, kap: 0, bosluk: null };
     if (c.tur === 'net' || c.tur === 'vardiya') {
@@ -75,7 +75,7 @@ function vrHesap(degerler, ayar, ayBas) {
         if (wA !== wB) { const sinir = (hBas + 7 * (Math.floor((gS - hBas) / 7) + 1)) * 24; pay = Math.max(0, Math.min(1, (sinir - r.absS) / (r.absE - r.absS))); }
         T.hafta[wA - 1] += r.kap * pay; T.hafta[wB - 1] += r.kap * (1 - pay);
       } else T.hafta[haftaNo(d) - 1] += r.kap;
-      if (net > 0) T.gun++;
+      if (net > 0) { T.gun++; if ((wd + d) % 7 >= 5) T.hs++; }
       if (r.gece) T.gece++;
       T.net += net; T.gfm += r.gfm;
       if (r.bosluk != null && r.bosluk < A.dinlenme) T.dinlenme++;
@@ -131,19 +131,26 @@ async function vardiyaView(view) {
   const bir = B.find(b => b.kod === VR.birim);
   VR.ayar = { ...VR_VARSAYILAN, ...(bir.ayar || {}) }; VR.bir = bir;
   const n = vrGunSay(VR.ay), bas = vrIso(VR.ay, 0), bit = vrIso(VR.ay, n - 1);
-  let kisi, satir, yayin;
+  let kisi, satir, yayin, seferler = [];
+  const geri7 = vrDkIso(vrDk(`${bas}T00:00`) - 7 * 1440).slice(0, 10), ileri = vrDkIso(vrDk(`${bit}T00:00`) + 2 * 1440).slice(0, 10);
   try {
-    const [k, s, y] = await Promise.all([sb.rpc('vardiya_kisiler', { p_birim: VR.birim }),
-      sb.from('vardiya').select('sicil,tarih,deger').eq('birim', VR.birim).gte('tarih', bas).lte('tarih', bit),
-      sb.from('vardiya_yayin').select('ay,yayin_tarihi').eq('birim', VR.birim).eq('ay', bas).maybeSingle()]);
+    const [k, s, y, sf] = await Promise.all([sb.rpc('vardiya_kisiler', { p_birim: VR.birim }),
+      sb.from('vardiya').select('sicil,tarih,deger').eq('birim', VR.birim).gte('tarih', geri7).lte('tarih', bit),
+      sb.from('vardiya_yayin').select('ay,yayin_tarihi').eq('birim', VR.birim).eq('ay', bas).maybeSingle(),
+      sb.from('sefer').select('ucus_no,havayolu,amac,durum,inis,kalkis,nereden,nereye,notlar').gte('inis', vrDkIso(vrDk(`${bas}T00:00`) - 2 * 1440)).lte('inis', `${ileri}T23:59`)]);
     if (k.error) throw k.error; if (s.error) throw s.error;
     kisi = k.data || []; satir = s.data || []; yayin = y.data || null;
+    const O = vrOto(VR.ayar), a0 = vrDk(`${bas}T00:00`), a1 = vrDk(`${bit}T00:00`) + 1440;
+    seferler = sf.error ? null : (sf.data || []).map(x => ({ ...x, inis: x.inis && x.inis.slice(0, 16), kalkis: x.kalkis && x.kalkis.slice(0, 16) }))
+      .filter(x => vrSeferOlay(x, O).some(o => o.bit > a0 && o.bas < a1)).sort((a, b) => String(a.inis || a.kalkis).localeCompare(String(b.inis || b.kalkis)));
   } catch (e) { $('v_govde').className = ''; $('v_govde').innerHTML = `<div class="alert">Vardiya verisi okunamadı: ${esc(e.message || e)}</div>`; return; }
-  const plan = {}; satir.forEach(r => { (plan[r.sicil] = plan[r.sicil] || Array(n).fill(''))[Number(r.tarih.slice(8, 10)) - 1] = r.deger; });
+  const plan = {}, onceki = {}, a0g = vrDk(`${bas}T00:00`) / 1440;
+  satir.forEach(r => { if (r.tarih < bas) { (onceki[r.sicil] = onceki[r.sicil] || []).push([vrDk(`${r.tarih}T00:00`) / 1440 - a0g, r.deger]); return; }
+    (plan[r.sicil] = plan[r.sicil] || Array(n).fill(''))[Number(r.tarih.slice(8, 10)) - 1] = r.deger; });
   // Satırlar: etkin birim personeli + bu ay planı olanlar (ayrılmış olsa bile)
   kisi = kisi.filter(p => p.durum === 'Etkin' || plan[p.sicil]);
   kisi.forEach(p => { plan[p.sicil] = plan[p.sicil] || Array(n).fill(''); });
-  Object.assign(VR, { kisi, plan, n, yayin, kirli: false, yaz });
+  Object.assign(VR, { kisi, plan, n, yayin, kirli: false, yaz, onceki, seferler: seferler || [], seferTablo: seferler !== null });
   vrCiz();
 }
 function vrDegis(git, iptal) {   // kaydedilmemiş değişiklik varken birim/ay değiştirme
@@ -159,7 +166,9 @@ function vrCiz() {
   const { kisi, plan, n, ay, yaz, ayar, yayin } = VR, g = $('v_govde'); if (!g) return;
   g.className = '';
   const ayBas = vrAyBas(ay), wd0 = (ayBas.getDay() + 6) % 7;
-  const gunH = Array.from({ length: n }, (_, d) => { const w = (wd0 + d) % 7; return `<th class="v-g${w >= 5 ? ' v-hs' : ''}${vrIso(ay, d) === ISO_TODAY ? ' v-bugun' : ''}"><b>${d + 1}</b><small>${VR_GUN[w]}</small></th>`; }).join('');
+  const O = vrOto(ayar), a0 = vrDk(`${vrIso(ay, 0)}T00:00`), sGun = {};
+  (VR.seferler || []).forEach(s => vrSeferOlay(s, O).forEach(o => { const d = Math.floor((o.bas - a0) / 1440); if (d >= 0 && d < n) (sGun[d] = sGun[d] || []).push(`${s.ucus_no} ${vrDkIso(o.bas).slice(11)}–${vrDkIso(o.bit).slice(11)}`); }));
+  const gunH = Array.from({ length: n }, (_, d) => { const w = (wd0 + d) % 7; return `<th class="v-g${w >= 5 ? ' v-hs' : ''}${vrIso(ay, d) === ISO_TODAY ? ' v-bugun' : ''}"${sGun[d] ? ` title="Sefer: ${esc(sGun[d].join(' · '))}"` : ''}><b>${d + 1}</b><small>${VR_GUN[w]}</small>${sGun[d] ? `<i class="v-ucak">✈ ${sGun[d].length}</i>` : ''}</th>`; }).join('');
   const izinS = Object.fromEntries(kisi.map(p => [p.sicil, GOREN() ? vrIzinGunleri(p.sicil, ay) : new Set()]));
   const kalip = [...(ayar.kaliplar || []), ...VR_IZINLI.slice(0, 3)];
   g.innerHTML = `
@@ -167,6 +176,7 @@ function vrCiz() {
     ${yayin ? `<span class="pill p-onaylandi">Yayında</span><span class="mini">${fdt(yayin.yayin_tarihi)} · personel kendi vardiyasını görüyor</span>` : '<span class="pill p-bekliyor">Taslak</span><span class="mini">Personel henüz görmüyor</span>'}
     <span class="v-bosluk"></span>
     ${yaz ? `<label class="btn sm" title="Fazla Mesai Hesaplama Excel dosyasındaki Günlük Saatler sayfasını içeri alır">Excel'den al<input type="file" id="v_al" accept=".xlsx,.xlsm,.xls" hidden></label>` : ''}
+    ${yaz ? '<button type="button" class="btn sm" id="v_oto">Otomatik planla</button>' : ''}
     <button type="button" class="btn sm" id="v_indir">Excel indir</button>
     ${yaz ? `<button type="button" class="btn sm" id="v_yayin">${yayin ? 'Yayından kaldır' : 'Yayınla'}</button><button type="button" class="btn pri sm" id="v_kaydet" disabled>Kaydedildi</button>` : ''}
   </div>
@@ -180,7 +190,8 @@ function vrCiz() {
   <div class="v-lejant"><span><i class="v-gun"></i>Gündüz</span><span><i class="v-gece"></i>Gece vardiyası</span><span><i class="v-fm"></i>O gün fazla mesai var</span><span><i class="v-dinlenme"></i>11 saat dinlenme dolmadan</span><span><i class="v-hata"></i>Hatalı giriş</span>
     <span class="mini">Yazım: 10.00-21.00 · 21.00-10.00 (gece; ${ayar.gece_gun === 'bitis' ? 'bittiği' : 'başladığı'} güne) · 11 (net saat) · HT / Yİ / R</span></div>
   <div class="panel" style="margin-top:16px"><div class="sb-bas"><h3>Kişi bazında toplam çalışma ve fazla mesai</h3><span class="mini">Haftalık ${fn(ayar.haftalik)} saat · günlük ${fn(ayar.gunduz)} saat (gece ${fn(ayar.gece_siniri ? ayar.gece : ayar.gunduz, 1)}) · dinlenme ${fn(ayar.dinlenme)} saat · mola ${ayar.mola ? 'düşülüyor' : 'düşülmüyor'}</span></div>
-    <div class="tbl"><table id="v_ozet"></table></div></div>`;
+    <div class="tbl"><table id="v_ozet"></table></div></div>
+  ${VR.seferTablo ? vrSeferPanel() : ''}`;
   for (let i = 0; i < kisi.length; i++) vrSatir(i);
   vrOzet();
   const T = $('v_tablo');
@@ -214,6 +225,8 @@ function vrCiz() {
   $('v_kaydet').onclick = () => vrKaydet();
   $('v_yayin').onclick = () => vrYayin();
   $('v_al').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) vrExceldenAl(f); };
+  $('v_oto').onclick = vrOtoModal;
+  if ($('v_sefer')) $('v_sefer').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) vrSeferYukle(f); };
   vrBagla();
 }
 function vrBagla() { $('v_indir').onclick = vrExcelIndir; }
@@ -252,12 +265,12 @@ function vrOzet() {
   const t = $('v_ozet'); if (!t) return;
   const H = vrHaftaAralik(VR.ay), L = vrOzetSatirlari();
   const top = k => L.reduce((a, x) => a + (x.T[k] || 0), 0);
-  t.innerHTML = `<thead><tr><th>Ad Soyad</th><th class="n">Gün</th><th class="n">Gece</th><th class="n">Net saat</th>${H.map((h, i) => h ? `<th class="n">${i + 1}. hafta<br><span class="mini">${h}</span></th>` : '').join('')}<th class="n">Günlük FM</th><th class="n">Haftalık FM</th><th class="n">Toplam FM</th><th>Uyarı</th></tr></thead>
-  <tbody>${L.map(({ p, T }) => `<tr><td>${esc(p.ad)} <span class="mini">${esc(p.sicil)}</span></td><td class="n">${T.gun || ''}</td><td class="n">${T.gece || ''}</td><td class="n">${vrSa(T.net)}</td>
+  t.innerHTML = `<thead><tr><th>Ad Soyad</th><th class="n">Gün</th><th class="n">Gece</th><th class="n">Hafta sonu</th><th class="n">Net saat</th>${H.map((h, i) => h ? `<th class="n">${i + 1}. hafta<br><span class="mini">${h}</span></th>` : '').join('')}<th class="n">Günlük FM</th><th class="n">Haftalık FM</th><th class="n">Toplam FM</th><th>Uyarı</th></tr></thead>
+  <tbody>${L.map(({ p, T }) => `<tr><td>${esc(p.ad)} <span class="mini">${esc(p.sicil)}</span></td><td class="n">${T.gun || ''}</td><td class="n">${T.gece || ''}</td><td class="n">${T.hs || ''}</td><td class="n">${vrSa(T.net)}</td>
     ${H.map((h, i) => h ? `<td class="n${T.hafta[i] > VR.ayar.haftalik ? ' neg' : ''}">${vrSa(T.hafta[i])}</td>` : '').join('')}
     <td class="n">${vrSa(T.gfm)}</td><td class="n">${vrSa(T.hfm)}</td><td class="n"><b>${vrSa(T.fm)}</b></td>
     <td class="mini">${[T.hata ? `${T.hata} hatalı giriş` : '', T.dinlenme ? `Dinlenme < ${fn(VR.ayar.dinlenme)} saat: ${T.dinlenme} kez` : ''].filter(Boolean).join(' · ')}</td></tr>`).join('')}
-  <tr class="v-toplam"><td><b>Toplam · ${L.length} kişi</b></td><td class="n">${top('gun')}</td><td class="n">${top('gece')}</td><td class="n">${vrSa(top('net'))}</td>${H.map((h, i) => h ? `<td class="n">${vrSa(L.reduce((a, x) => a + x.T.hafta[i], 0))}</td>` : '').join('')}<td class="n">${vrSa(top('gfm'))}</td><td class="n">${vrSa(top('hfm'))}</td><td class="n"><b>${vrSa(top('fm'))}</b></td><td></td></tr></tbody>`;
+  <tr class="v-toplam"><td><b>Toplam · ${L.length} kişi</b></td><td class="n">${top('gun')}</td><td class="n">${top('gece')}</td><td class="n">${top('hs')}</td><td class="n">${vrSa(top('net'))}</td>${H.map((h, i) => h ? `<td class="n">${vrSa(L.reduce((a, x) => a + x.T.hafta[i], 0))}</td>` : '').join('')}<td class="n">${vrSa(top('gfm'))}</td><td class="n">${vrSa(top('hfm'))}</td><td class="n"><b>${vrSa(top('fm'))}</b></td><td></td></tr></tbody>`;
 }
 async function vrKaydet() {
   const b = $('v_kaydet'); if (b) { b.disabled = true; b.textContent = 'Kaydediliyor…'; }
@@ -312,7 +325,8 @@ async function vrExceldenAl(f) {
   } catch (e) { alertMsg('Dosya okunamadı: ' + e.message); }
 }
 function vrAyarModal(bir, sonra) {
-  const A = { ...VR_VARSAYILAN, ...(bir.ayar || {}) };
+  const A = { ...VR_VARSAYILAN, ...(bir.ayar || {}) }, O = vrOto(A);
+  const kalV = (A.kaliplar || []).filter(k => vrCoz(k).tur === 'vardiya');
   const sor = (bir.sorumlu || []).map(s => `${s}${DATA.byS[s] ? ' · ' + DATA.byS[s].ad : ''}`).join('\n');
   modal(`<h3>${esc(bir.ad)} · vardiya kuralları</h3>
   <div class="form v-ayar-form">
@@ -326,6 +340,18 @@ function vrAyarModal(bir, sonra) {
     <label class="v-cb"><input type="checkbox" id="va_gs"${A.gece_siniri ? ' checked' : ''}> Gece sınırı uygulansın</label>
     <label class="v-cb"><input type="checkbox" id="va_m"${A.mola ? ' checked' : ''}> Mola düşülsün (7,5 saat üstü 1 sa · 4 saat üstü 0,5 sa · altı 0,25 sa)</label>
     <label class="v-genis">Vardiya kalıpları (hızlı giriş düğmeleri, her satıra bir tane)<textarea id="va_k" rows="4">${esc((A.kaliplar || []).join('\n'))}</textarea></label>
+    <div class="v-genis v-oto-bas"><b>Otomatik planlama</b><span class="mini">Her gün bu vardiyalarda kaç kişi çalışmalı? (Kalıp listesini değiştirdiyseniz önce kaydedip bu ekranı yeniden açın.)</span></div>
+    <div class="v-genis"><table class="v-iht"><thead><tr><th>Vardiya</th><th>Hafta içi kişi</th><th>Hafta sonu kişi</th></tr></thead><tbody>
+      ${kalV.map(k => { const i = O.ihtiyac[k] || {}; return `<tr data-k="${esc(k)}"><td><b>${esc(k)}</b></td><td><input type="number" min="0" max="99" class="vi-hi" value="${i.hi || 0}"></td><td><input type="number" min="0" max="99" class="vi-hs" value="${i.hs || 0}"></td></tr>`; }).join('') || '<tr><td colspan="3" class="mini">Önce vardiya kalıbı girin.</td></tr>'}</tbody></table></div>
+    <label>Sefer sırasında havalimanında en az kaç kişi (0 = sefere göre ek planlama yok)<input type="number" min="0" id="vo_sk" value="${O.sefer_kisi}"></label>
+    <label>Üst üste en fazla çalışma günü<input type="number" min="1" max="13" id="vo_ar" value="${O.ardisik_max}"></label>
+    <label>Gelen yolcu: inişten kaç saat önce<input type="number" step="0.25" id="vo_go" value="${O.gelen_once}"></label>
+    <label>Giden yolcu: kalkıştan kaç saat önce<input type="number" step="0.25" id="vo_gi" value="${O.giden_once}"></label>
+    <label>Kalkıştan sonra kaç dakika kalınır<input type="number" step="5" id="vo_cs" value="${Math.round(O.cikis_sonra * 60)}"></label>
+    <label>İnişten sonra kaç dakika kalınır<input type="number" step="5" id="vo_is" value="${Math.round(O.inis_sonra * 60)}"></label>
+    <label>Haftada en fazla net saat (fazla mesai dahil)<input type="number" step="0.5" id="vo_hu" value="${O.haftalik_ust}"></label>
+    <label>Gece vardiyasından sonra boş gün<input type="number" min="0" max="3" id="vo_gb" value="${O.gece_sonra_bos}"></label>
+    <label class="v-cb"><input type="checkbox" id="vo_ik"${O.inis_karsila ? ' checked' : ''}> Giden yolculu seferde inişi de karşıla</label>
     <label class="v-genis">Vardiya sorumluları (sicil no, her satıra bir tane) · bu kişiler panelde bu birimin planını hazırlayabilir<textarea id="va_s" rows="3" placeholder="31850">${esc(sor)}</textarea></label>
   </div><div id="va_msg"></div>
   <div class="acts"><button class="btn" data-close>Vazgeç</button><button class="btn pri" id="va_kay">Kaydet</button></div>`, (bg, close) => {
@@ -339,6 +365,9 @@ function vrAyarModal(bir, sonra) {
       if (bilinmeyen.length) { q('#va_msg').innerHTML = `<div class="alert">Personelde olmayan sicil: ${esc(bilinmeyen.join(', '))}</div>`; return; }
       const ayar = { haftalik: num('#va_h'), gunduz: num('#va_g'), gece: num('#va_n'), dinlenme: num('#va_d'), gece_bas: q('#va_gb').value || '20:00', gece_bit: q('#va_ge').value || '06:00',
         gece_gun: q('#va_gg').value, gece_siniri: q('#va_gs').checked, mola: q('#va_m').checked, kaliplar: kal };
+      const iht = {}; bg.querySelectorAll('.v-iht tr[data-k]').forEach(tr => { const hi = Math.max(0, Number(tr.querySelector('.vi-hi').value) || 0), hs = Math.max(0, Number(tr.querySelector('.vi-hs').value) || 0); if (kal.includes(tr.dataset.k) && (hi || hs)) iht[tr.dataset.k] = { hi, hs }; });
+      ayar.oto = { ...O, ihtiyac: iht, sefer_kisi: Math.max(0, num('#vo_sk') || 0), ardisik_max: Math.max(1, num('#vo_ar') || 6), gelen_once: num('#vo_go') || 0, giden_once: num('#vo_gi') || 0,
+        cikis_sonra: (num('#vo_cs') || 0) / 60, inis_sonra: (num('#vo_is') || 0) / 60, haftalik_ust: num('#vo_hu') || 66, gece_sonra_bos: Math.max(0, num('#vo_gb') || 0), inis_karsila: q('#vo_ik').checked };
       if ([ayar.haftalik, ayar.gunduz, ayar.gece, ayar.dinlenme].some(x => !(x > 0))) { q('#va_msg').innerHTML = '<div class="alert">Süreler sıfırdan büyük olmalı.</div>'; return; }
       const { error } = await sb.rpc('vardiya_birim_kaydet', { p_kod: bir.kod, p_ayar: ayar, p_sorumlu: sorumlu });
       if (error) { q('#va_msg').innerHTML = `<div class="alert">${esc(error.message)}</div>`; return; }
@@ -385,4 +414,180 @@ async function vardiyamView(view) {
     box.querySelectorAll('#vm_ay button').forEach(x => x.onclick = () => { ay = x.dataset.a; ciz(); });
   };
   ciz();
+}
+
+// =====================================================================
+// Sefer programı ve otomatik planlama
+// =====================================================================
+const VR_OTO = {
+  ihtiyac: {},                 // kalıp → { hi: hafta içi kişi, hs: hafta sonu kişi }
+  sefer_kisi: 0,               // sefer sırasında havalimanında bulunması gereken en az kişi (0 = sefere göre ek planlama yok)
+  gelen_once: 1.5, giden_once: 4, bos_kalkis_once: 1, inis_sonra: 1, cikis_sonra: 0.75, inis_karsila: true, birlestir: 3,
+  ardisik_max: 6, haftalik_ust: 66, gece_sonra_bos: 1,
+};
+const vrOto = A => ({ ...VR_OTO, ...((A || {}).oto || {}) });
+const vrSaatYaz = h => { h = ((h % 24) + 24) % 24; const m = Math.round(h * 60); return `${String(Math.floor(m / 60) % 24).padStart(2, '0')}.${String(m % 60).padStart(2, '0')}`; };
+const vrDk = s => { const [d, t] = s.split('T'); const [y, m, g] = d.split('-').map(Number); const [h, mi] = (t || '00:00').split(':').map(Number); return Date.UTC(y, m - 1, g, h, mi) / 60000; };   // yerel saati dakika sayısı olarak (saat dilimi yok)
+const vrDkIso = dk => new Date(dk * 60000).toISOString().slice(0, 16);
+
+/* Sefer Excel'i (Seferler sayfası) → [{ ucus_no, havayolu, amac, durum, inis, kalkis, nereden, nereye, notlar }]
+   R: sheet_to_json({header:1, raw:true}) çıktısı; tarih/saat hücreleri Excel seri numarasıdır. */
+function vrSeferCoz(R) {
+  const hi = R.findIndex(r => r.some(v => String(v).trim() === 'Uçuş No') && r.some(v => /Geliş Tarihi/.test(String(v))));
+  if (hi < 0) throw new Error('"Seferler" sayfasında Uçuş No / Geliş Tarihi başlıkları bulunamadı.');
+  const H = R[hi].map(v => String(v || '').trim()), c = ad => H.findIndex(h => h === ad);
+  const K = { amac: c('Uçuş Amacı'), hy: c('Havayolu'), gt: c('Geliş Tarihi'), dt: c('Gidiş Tarihi'), no: c('Uçuş No'), vs: c('Varış Saati'), ks: c('Kalkış Saati'), kh: c('Kalkış Havalimanı'), vh: c('Varış Havalimanı'), du: c('Uçuş Durumu'), not: c('Notlar') };
+  if ([K.gt, K.no, K.vs, K.ks].some(x => x < 0)) throw new Error('Sefer tablosunda gerekli sütunlar eksik (Geliş Tarihi, Uçuş No, Varış Saati, Kalkış Saati).');
+  const tarih = v => { if (typeof v === 'number') { const d = new Date(Math.round((Math.floor(v) - 25569) * 864e5)); return d.toISOString().slice(0, 10); }
+    const s = String(v || '').trim(); let m = s.match(/^(\d{1,2})[./](\d{1,2})[./](\d{4})/); if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`; m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[0] : null; };
+  const saat = v => { if (typeof v === 'number') { const dk = Math.round((v - Math.floor(v)) * 1440) % 1440; return `${String(Math.floor(dk / 60)).padStart(2, '0')}:${String(dk % 60).padStart(2, '0')}`; }
+    const x = vrSaat(v); return x == null ? null : vrSaatYaz(x).replace('.', ':'); };
+  const out = [];
+  R.slice(hi + 1).forEach(r => {
+    const no = String(r[K.no] ?? '').trim(), gt = tarih(r[K.gt]); if (!no || !gt) return;
+    const dt = K.dt >= 0 ? tarih(r[K.dt]) || gt : gt, vs = saat(r[K.vs]), ks = saat(r[K.ks]);
+    out.push({ ucus_no: no, havayolu: K.hy >= 0 ? String(r[K.hy] || '').trim() : '', amac: K.amac >= 0 ? String(r[K.amac] || '').trim() : '',
+      durum: K.du >= 0 ? String(r[K.du] || '').trim() : 'GELEN/GİDEN YOLCULU', inis: vs ? `${gt}T${vs}` : null, kalkis: ks ? `${dt}T${ks}` : null,
+      nereden: K.kh >= 0 ? String(r[K.kh] || '').trim() : '', nereye: K.vh >= 0 ? String(r[K.vh] || '').trim() : '', notlar: K.not >= 0 ? String(r[K.not] || '').trim() : '' });
+  });
+  return out;
+}
+/* Bir seferin personel ihtiyacı olan zaman pencereleri (dakika) */
+function vrSeferOlay(s, O) {
+  const du = String(s.durum || '').toLocaleUpperCase('tr'), gelen = du.includes('GELEN'), giden = du.includes('GİDEN') || du.includes('GIDEN');
+  const W = [];
+  if (s.inis && (gelen || O.inis_karsila)) { const t = vrDk(s.inis); W.push([t - O.gelen_once * 60, t + O.inis_sonra * 60]); }
+  if (s.kalkis) { const t = vrDk(s.kalkis); W.push([t - (giden ? O.giden_once : O.bos_kalkis_once) * 60, t + O.cikis_sonra * 60]); }
+  W.sort((a, b) => a[0] - b[0]);
+  const M = []; W.forEach(w => { const l = M[M.length - 1]; if (l && w[0] - l[1] < O.birlestir * 60) l[1] = Math.max(l[1], w[1]); else M.push([...w]); });
+  return M.map(([a, b]) => ({ bas: Math.floor(a / 15) * 15, bit: Math.ceil(b / 15) * 15, sefer: s }));
+}
+
+/* Otomatik planlama: boş hücreleri kural ve adalete göre doldurur. Dönüş: rapor */
+function vrOtoPlanla({ koru = true, htYaz = false } = {}) {
+  const A = VR.ayar, O = vrOto(A), n = VR.n, ay = VR.ay, ayDk = vrDk(`${vrIso(ay, 0)}T00:00`);
+  const wd0 = (vrAyBas(ay).getDay() + 6) % 7, hs = d => (wd0 + d) % 7 >= 5;
+  const ozel = v => { const c = vrCoz(v); return c.tur === 'vardiya' || c.tur === 'net'; };
+  // Kişi durumu
+  const K = VR.kisi.map(p => {
+    const deg = VR.plan[p.sicil], izin = GOREN() ? vrIzinGunleri(p.sicil, ay) : new Set();
+    const st = { p, deg, izin, vard: [], gunler: new Set(), net: 0, gece: 0, hs: 0, sefer: 0 };
+    const ekle = (v, d) => { const c = vrCoz(v); if (c.tur === 'net') { st.vard.push({ s: d * 1440 + 9 * 60, e: d * 1440 + 9 * 60 + c.net * 60, d, gece: false, net: c.net }); }
+      else if (c.tur === 'vardiya') { const g = vrHesap([v], A, vrAyBas(ay)).G[0]; const s = (d * 24 + c.bas - (A.gece_gun === 'bitis' && c.bas + c.sure > 24.01 ? 24 : 0)) * 60; st.vard.push({ s, e: s + c.sure * 60, d, gece: g.gece, net: g.net }); }
+      else return; st.gunler.add(d); };
+    (VR.onceki[p.sicil] || []).forEach(([d, v]) => ekle(v, d));      // önceki ayın son haftası (d < 0)
+    deg.forEach((v, d) => { if (!koru) { if (ozel(v)) deg[d] = ''; } if (deg[d]) ekle(deg[d], d); });
+    st.vard.filter(x => x.d >= 0).forEach(x => { st.net += x.net; if (x.gece) st.gece++; if (hs(x.d)) st.hs++; });
+    return st;
+  });
+  const aday = (v, d) => { const c = vrCoz(v); const g = vrHesap([v], A, vrAyBas(ay)).G[0]; const s = (d * 24 + c.bas - (A.gece_gun === 'bitis' && c.bas + c.sure > 24.01 ? 24 : 0)) * 60; return { s, e: s + c.sure * 60, d, gece: g.gece, net: g.net, v }; };
+  const uygun = (st, x) => {
+    if (x.d < 0 || x.d >= n || st.deg[x.d] || st.izin.has(x.d)) return false;
+    const dinl = A.dinlenme * 60;
+    if (st.vard.some(y => !(x.s >= y.e + dinl || x.e + dinl <= y.s))) return false;
+    let a = 1; for (let d = x.d - 1; st.gunler.has(d); d--) a++; for (let d = x.d + 1; st.gunler.has(d); d++) a++;
+    if (a > O.ardisik_max) return false;
+    if (O.gece_sonra_bos > 0) { for (let k = 1; k <= O.gece_sonra_bos; k++) { if (st.vard.some(y => y.gece && y.d === x.d - k)) return false; if (x.gece && st.gunler.has(x.d + k)) return false; } }
+    const h0 = Math.floor((x.d + wd0) / 7);
+    const hn = st.vard.filter(y => Math.floor((y.d + wd0) / 7) === h0).reduce((t, y) => t + y.net, 0);
+    if (hn + x.net > O.haftalik_ust) return false;
+    return true;
+  };
+  const ort = () => K.reduce((t, s) => t + s.net, 0) / (K.length || 1);
+  const sec = x => {   // en az yüklü uygun kişi: saat, gece ve hafta sonu yükü dengelenir
+    const m = ort() || 1, og = K.reduce((t, q) => t + q.gece, 0) / (K.length || 1), oh = K.reduce((t, q) => t + q.hs, 0) / (K.length || 1);
+    let en = null, eb = Infinity;
+    K.forEach((st, i) => { if (!uygun(st, x)) return;
+      const b = st.net / m + (x.gece ? 0.5 * (st.gece - og) : 0) + (hs(x.d) ? 0.35 * (st.hs - oh) : 0) + (x.sefer ? 0.2 * st.sefer : 0) + ((i * 7 + x.d * 13) % (K.length || 1)) * 1e-4;
+      if (b < eb) { eb = b; en = st; } });
+    return en;
+  };
+  const ata = (st, x, sefer) => { st.deg[x.d] = x.v; st.vard.push(x); st.gunler.add(x.d); st.net += x.net; if (x.gece) st.gece++; if (hs(x.d)) st.hs++; if (sefer) st.sefer++; };
+  // Kalıplar başlangıç saatine göre (gece vardiyaları önce: ertesi günün gündüzünü kısıtlar)
+  const kal = (A.kaliplar || []).filter(k => vrCoz(k).tur === 'vardiya').map(k => ({ k, c: vrCoz(k), i: O.ihtiyac[k] || {} }));
+  // Sefer olayları (ayın günlerine)
+  // Üst üste binen ya da birbirine yakın sefer pencereleri tek görevde birleştirilir (en çok 14 saat)
+  const ham = []; (VR.seferler || []).forEach(s => vrSeferOlay(s, O).forEach(o => ham.push(o)));
+  ham.sort((a, b) => a.bas - b.bas);
+  const olaylar = [];
+  ham.forEach(o => { const l = olaylar[olaylar.length - 1];
+    if (l && o.bas - l.bit < O.birlestir * 60 && Math.max(l.bit, o.bit) - l.bas <= 14 * 60) { l.bit = Math.max(l.bit, o.bit); l.sefer = { ucus_no: l.sefer.ucus_no + ' + ' + o.sefer.ucus_no }; }
+    else olaylar.push({ ...o, sefer: { ucus_no: o.sefer.ucus_no } }); });
+  const rapor = { atanan: 0, sefer_ek: 0, eksik: [], olay: 0 };
+  for (let d = 0; d < n; d++) {
+    // 1) temel ihtiyaç
+    kal.slice().sort((a, b) => (b.c.bas + b.c.sure > 24.01) - (a.c.bas + a.c.sure > 24.01) || a.c.bas - b.c.bas).forEach(({ k, i }) => {
+      const ist = Number(hs(d) ? i.hs : i.hi) || 0; if (!ist) return;
+      const x = aday(k, d); let var_ = K.filter(st => st.deg[d] === k).length;
+      while (var_ < ist) { const st = sec(x); if (!st) { rapor.eksik.push({ d, k, eksik: ist - var_ }); break; } ata(st, { ...x }, false); var_++; rapor.atanan++; }
+    });
+    // 2) sefer: o gün başlayan (yazılacağı güne göre) olaylar
+    if (O.sefer_kisi > 0) olaylar.forEach(o => {
+      const sR = (o.bas - ayDk) / 60, eR = (o.bit - ayDk) / 60;
+      const yazGun = A.gece_gun === 'bitis' && Math.floor(eR / 24) !== Math.floor(sR / 24) ? Math.floor((eR - 1 / 60) / 24) : Math.floor(sR / 24);
+      if (yazGun !== d) return;
+      rapor.olay++;
+      const kapsar = st => st.vard.some(y => y.s <= sR * 60 && y.e >= eR * 60);
+      let var_ = K.filter(kapsar).length;
+      if (eR - sR > 16) { rapor.eksik.push({ d, k: `${o.sefer.ucus_no}: personel penceresi ${fn(eR - sR, 1)} saat, tek vardiyaya sığmaz`, eksik: O.sefer_kisi }); return; }
+      const v = `${vrSaatYaz(sR)}-${vrSaatYaz(eR)}`, x = { ...aday(v, d), sefer: true };
+      while (var_ < O.sefer_kisi) { const st = sec(x); if (!st) { rapor.eksik.push({ d, k: `${o.sefer.ucus_no} (${v})`, eksik: O.sefer_kisi - var_ }); break; } ata(st, { ...x }, true); var_++; rapor.sefer_ek++; rapor.atanan++; }
+    });
+  }
+  if (htYaz) K.forEach(st => st.deg.forEach((v, d) => { if (!v && !st.izin.has(d)) st.deg[d] = 'HT'; }));
+  rapor.adalet = K.map(st => ({ ad: st.p.ad, net: st.net, gece: st.gece, hs: st.hs, sefer: st.sefer }));
+  return rapor;
+}
+function vrOtoModal() {
+  const A = VR.ayar, O = vrOto(A), kal = (A.kaliplar || []).filter(k => vrCoz(k).tur === 'vardiya');
+  const ihtVar = kal.some(k => (O.ihtiyac[k] || {}).hi || (O.ihtiyac[k] || {}).hs) || O.sefer_kisi > 0;
+  modal(`<h3>Otomatik planla · ${esc(VR.bir.ad)} · ${AYU[vrAyBas(VR.ay).getMonth()]}</h3>
+  ${ihtVar ? `<p>Boş hücreler; birimin ihtiyaçlarına${O.sefer_kisi ? ` ve bu aydaki <b>${(VR.seferler || []).length} sefere</b>` : ''} göre, dinlenme ve çalışma süresi kuralları içinde, saat, gece ve hafta sonu yükü kişiler arasında eşit olacak şekilde doldurulur.</p>
+  <ul class="mini">${kal.filter(k => (O.ihtiyac[k] || {}).hi || (O.ihtiyac[k] || {}).hs).map(k => { const i = O.ihtiyac[k] || {}; return `<li><b>${esc(k)}</b>: hafta içi ${i.hi || 0}, hafta sonu ${i.hs || 0} kişi</li>`; }).join('')}
+  ${O.sefer_kisi ? `<li>Sefer sırasında en az <b>${O.sefer_kisi}</b> kişi (gelen yolcu inişten ${fn(O.gelen_once, 1)} sa, giden yolcu kalkıştan ${fn(O.giden_once, 1)} sa önce; kalkıştan ${fn(O.cikis_sonra * 60)} dk sonrasına kadar)</li>` : ''}
+  <li>Üst üste en fazla ${O.ardisik_max} gün · haftada en fazla ${O.haftalik_ust} net saat · vardiyalar arası en az ${A.dinlenme} saat${O.gece_sonra_bos ? ` · gece vardiyasından sonra ${O.gece_sonra_bos} gün boş` : ''}</li></ul>
+  <label class="v-cb"><input type="checkbox" id="vo_koru" checked> Elle girdiğim vardiyaları koru (yalnızca boş hücreleri doldur)</label>
+  <label class="v-cb"><input type="checkbox" id="vo_ht"> Kalan boş günlere HT yaz</label>
+  <p class="mini">Sonuç ekrana gelir; beğenmezseniz kaydetmeden sayfayı yenileyip vazgeçebilirsiniz. Onaylı izinler ${GOREN() ? 'otomatik dikkate alınır' : 'yalnızca İK hesabında görünür'}; izinli günlere Yİ/R yazarsanız o günler boş bırakılır.</p>`
+  : `<div class="alert">Önce <b>Kurallar ve sorumlular</b> ekranından bu birimin günlük kişi ihtiyacını ya da sefer başına kişi sayısını girin.</div>`}
+  <div class="acts"><button class="btn" data-close>Vazgeç</button>${ihtVar ? '<button class="btn pri" id="vo_git">Planla</button>' : ''}</div>`, (bg, close) => {
+    const g = bg.querySelector('#vo_git'); if (!g) return;
+    g.onclick = () => {
+      const r = vrOtoPlanla({ koru: bg.querySelector('#vo_koru').checked, htYaz: bg.querySelector('#vo_ht').checked });
+      close(); const k = VR.kirli; vrCiz(); vrKirli(true);
+      const a = r.adalet, mm = f => a.length ? `${fn(Math.min(...a.map(f)), 1)} – ${fn(Math.max(...a.map(f)), 1)}` : '—';
+      modal(`<h3>Plan hazır</h3><p><b>${r.atanan}</b> vardiya yazıldı${r.olay ? `; ${r.olay} sefer penceresi için <b>${r.sefer_ek}</b> ek görev` : ''}. Kontrol edip <b>Kaydet</b>'e basın.</p>
+        <div class="tbl"><table><thead><tr><th>Kişi başı</th><th class="n">En az – en çok</th></tr></thead><tbody>
+        <tr><td>Net saat (ay)</td><td class="n">${mm(x => x.net)}</td></tr><tr><td>Gece vardiyası</td><td class="n">${mm(x => x.gece)}</td></tr>
+        <tr><td>Hafta sonu çalışma</td><td class="n">${mm(x => x.hs)}</td></tr>${r.olay ? `<tr><td>Sefer görevi</td><td class="n">${mm(x => x.sefer)}</td></tr>` : ''}</tbody></table></div>
+        ${r.eksik.length ? `<div class="alert" style="margin-top:12px"><b>Karşılanamayan ihtiyaç (${r.eksik.length}):</b> kural ihlali olmadan atanacak kişi bulunamadı.<ul>${r.eksik.slice(0, 12).map(e => `<li>${e.d + 1} ${AYU[vrAyBas(VR.ay).getMonth()]} · ${esc(e.k)} · ${e.eksik} kişi eksik</li>`).join('')}</ul>${r.eksik.length > 12 ? `+${r.eksik.length - 12} daha` : ''}</div>` : '<p class="mini" style="margin-top:10px">Bütün ihtiyaçlar karşılandı.</p>'}
+        <div class="acts"><button class="btn pri" data-close>Tamam</button></div>`);
+      void k;
+    };
+  });
+}
+async function vrSeferYukle(f) {
+  if (typeof XLSX === 'undefined' || !XLSX.read) { alertMsg('Excel kütüphanesi yüklenemedi; sayfayı yenileyip tekrar deneyin.'); return; }
+  try {
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets['Seferler'] || wb.Sheets[wb.SheetNames[0]];
+    const S = vrSeferCoz(XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }));
+    if (!S.length) { alertMsg('Dosyada sefer bulunamadı.'); return; }
+    const gun = S.map(s => (s.inis || s.kalkis).slice(0, 10)).sort(), bas = gun[0], bit = gun[gun.length - 1];
+    const { error } = await sb.rpc('sefer_yukle', { p_bas: bas, p_bit: bit, p_satirlar: S });
+    if (error) { alertMsg('Seferler kaydedilemedi: ' + error.message); return; }
+    alertMsg(`${S.length} sefer yüklendi (${fd(bas)} – ${fd(bit)}). Bu tarih aralığındaki eski sefer listesi yenisiyle değiştirildi.`);
+    VR.seferYenile = true; const v = $('view'); if (v) vardiyaView(v);
+  } catch (e) { alertMsg('Sefer dosyası okunamadı: ' + e.message); }
+}
+function vrSeferPanel() {
+  const S = VR.seferler || [], O = vrOto(VR.ayar);
+  const yaz = VR.yaz;
+  return `<details class="panel v-sefer" style="margin-top:16px"${S.length ? '' : ' open'}><summary><h3 style="display:inline">Sefer programı · ${S.length} sefer</h3>
+    ${yaz ? `<label class="btn sm" style="margin-left:10px" onclick="event.stopPropagation()">Sefer Excel'i yükle<input type="file" id="v_sefer" accept=".xlsx,.xlsm,.xls" hidden></label>` : ''}</summary>
+    ${S.length ? `<div class="tbl" style="margin-top:10px;max-height:340px"><table><thead><tr><th>Uçuş</th><th>Havayolu</th><th>Durum</th><th>İniş</th><th>Kalkış</th><th>Personel penceresi</th></tr></thead><tbody>
+      ${S.map(s => `<tr><td><b>${esc(s.ucus_no)}</b> <span class="mini">${esc(s.amac || '')}</span></td><td>${esc(s.havayolu || '')}</td><td class="mini">${esc(s.durum || '')}</td>
+      <td>${s.inis ? fd(s.inis.slice(0, 10)) + ' ' + s.inis.slice(11, 16) : '—'}</td><td>${s.kalkis ? fd(s.kalkis.slice(0, 10)) + ' ' + s.kalkis.slice(11, 16) : '—'}</td>
+      <td class="mini">${vrSeferOlay(s, O).map(o => `${vrDkIso(o.bas).slice(8, 10)}.${vrDkIso(o.bas).slice(5, 7)} ${vrDkIso(o.bas).slice(11)}–${vrDkIso(o.bit).slice(11)}`).join(' · ')}</td></tr>`).join('')}</tbody></table></div>`
+      : `<p class="mini" style="margin-top:8px">Bu ay için sefer yok. Operasyonun "Umre Seferleri Planlama Tablosu" dosyasını yükleyin (Seferler sayfası okunur). Yüklenen seferler tüm birimlerde kullanılır.</p>`}</details>`;
 }
