@@ -794,15 +794,15 @@ V.sertifika = async view => {
   // --- Excel'den gelen eğitimler: sertifikası henüz düzenlenmemiş iç eğitimler
   if (SF.on) { const o = SF.on; SF.on = null; const set = (id, v) => { const el = $(id); if (el && v != null) el.value = v; };
     set('s_egt', o.egitim); set('s_t1', o.bas || o.bit); set('s_t2', o.bas && o.bas !== o.bit ? o.bit : ''); set('s_saat', o.saat == null ? '' : o.saat); set('s_egm', o.egitmen);
-    $('s_msg').innerHTML = `<div class="msg info">Excel'deki eğitim forma aktarıldı ve ${SF.sec.size} katılımcı seçildi. Bilgileri kontrol edip <b>Belgeleri oluştur ve yazdır</b>'a basın.</div>`; $('sform').scrollIntoView({ block: 'center' }); }
+    $('s_msg').innerHTML = `<div class="msg info">Eğitim verilerindeki eğitim forma aktarıldı ve ${SF.sec.size} katılımcı seçildi. Bilgileri kontrol edip <b>Belgeleri oluştur ve yazdır</b>'a basın.</div>`; $('sform').scrollIntoView({ block: 'center' }); }
   const BF2 = SF.byil || String(TODAY.getFullYear());
   const bekleyenler = () => sertifikaGruplari(B, AYAR, { yil: BF2 });
   const bekleyenCiz = () => {
     const L = bekleyenler(), yil = [...new Set(DATA.P.flatMap(p => p.H.map(h => String(h[0] || '').slice(0, 4))).filter(y => /^\d{4}$/.test(y)))].sort().reverse().slice(0, 6);
     const tr = t => t ? fd(t) : '';
-    $('s_bekleyen').innerHTML = `<div class="panel sb-panel" style="margin-bottom:16px"><div class="sb-bas"><h3>Excel'den gelen eğitimler · sertifikası düzenlenmemiş <span class="pill ${L.length ? 'p-bekliyor' : 'p-onaylandi'}">${L.reduce((a, g) => a + g.eksik.length, 0)} kişi</span></h3>
+    $('s_bekleyen').innerHTML = `<div class="panel sb-panel" style="margin-bottom:16px"><div class="sb-bas"><h3>Eğitim verilerinden gelenler · sertifikası düzenlenmemiş <span class="pill ${L.length ? 'p-bekliyor' : 'p-onaylandi'}">${L.reduce((a, g) => a + g.eksik.length, 0)} kişi</span></h3>
       <select id="sb_yil">${yil.map(y => `<option ${y === BF2 ? 'selected' : ''}>${y}</option>`).join('')}</select></div>
-      <p class="mini" style="margin:-4px 0 10px">SHGM Eğitim Takip dosyasındaki <b>iç eğitimler</b> burada listelenir: SHGM eğitimleri için numaralı SHGM sertifikası, Temel İSG için katılım belgesi. Dış eğitimlerin belgesini eğitim firması verir.</p>
+      <p class="mini" style="margin:-4px 0 10px">Eğitim verilerindeki <b>iç eğitimler</b> burada listelenir: SHGM eğitimleri için numaralı SHGM sertifikası, Temel İSG için katılım belgesi. Dış eğitimlerin belgesini eğitim firması verir.</p>
       ${L.length ? `<div class="sb-liste">${L.map((g, i) => `<div class="sb-satir"><div><b>${esc(g.egitim)}</b><span class="mini">${tr(g.bas)}${g.bas ? ' – ' : ''}${tr(g.bit)} · ${esc(g.egitmen || 'eğitimci yok')}${g.saat ? ' · ' + fn(g.saat, 1) + ' saat' : ''} · ${SABLON_AD[g.sab]}</span>
           <span class="mini">${g.eksik.slice(0, 6).map(s => esc((DATA.byS[s] || {}).ad || s)).join(', ')}${g.eksik.length > 6 ? ` +${g.eksik.length - 6}` : ''}${g.hepsi.length > g.eksik.length ? ` · <i>${g.hepsi.length - g.eksik.length} kişinin belgesi zaten var</i>` : ''}</span></div>
           <div class="actions"><button class="btn sm" data-sbg="${i}" title="Bu eğitimin belgeleri panel dışında verildiyse listeden çıkarır">Belgesi verildi</button><button class="btn sm" data-sba="${i}">Forma aktar</button><button class="btn sm pri" data-sbu="${i}">${g.eksik.length} belge üret</button></div></div>`).join('')}</div>
@@ -822,7 +822,7 @@ V.sertifika = async view => {
           close(); await V.sertifika(view);
           const nolar = r ? r.nolar : [];
           $('s_msg').innerHTML = (r && r.n ? `<div class="msg ok">${r.n} belge oluşturuldu${nolar.length ? ` (${nolar[0]}${nolar.length > 1 ? ' – ' + nolar[nolar.length - 1] : ''})` : ''}. Yazdırmak için aşağıdaki listeyi kullanın.</div>` : '')
-            + (r && r.atlanan.length ? `<div class="msg err" style="margin-top:6px">Excel'de eğitimci adı olmadığı için üretilmedi: ${esc(r.atlanan.join(', '))}. "Forma aktar" ile eğitimciyi yazarak üretin.</div>` : '')
+            + (r && r.atlanan.length ? `<div class="msg err" style="margin-top:6px">Eğitim verilerinde eğitimci adı olmadığı için üretilmedi: ${esc(r.atlanan.join(', '))}. "Forma aktar" ile eğitimciyi yazarak üretin.</div>` : '')
             + (hata ? `<div class="msg err" style="margin-top:6px">Üretim durdu: ${esc(hata.message)}${/duplicate key|seri_no/.test(hata.message) ? ' — 14_sertifika_no_duzelt.sql dosyasını Supabase SQL Editor\'da çalıştırın.' : ''}</div>` : '')
             || '<div class="msg info">Üretilecek yeni belge kalmamış; hepsi zaten üretilmiş.</div>';
           $('s_msg').scrollIntoView({ block: 'center' }); }; }); };
@@ -835,7 +835,7 @@ V.sertifika = async view => {
     $('s_bekleyen').querySelectorAll('[data-sbu]').forEach(b => b.onclick = () => onayla([L[+b.dataset.sbu]]));
     const hep = $('sb_hep'); if (hep) hep.onclick = () => onayla(L);
   };
-  try { bekleyenCiz(); } catch (er) { $('s_bekleyen').innerHTML = `<div class="msg err" style="margin-bottom:16px">Excel'den gelen eğitimler listelenemedi: ${esc(er.message)}</div>`; console.error(er); }
+  try { bekleyenCiz(); } catch (er) { $('s_bekleyen').innerHTML = `<div class="msg err" style="margin-bottom:16px">Eğitim verilerinden gelenler listelenemedi: ${esc(er.message)}</div>`; console.error(er); }
   // --- verilen belgeler listesi
   const sirala = (a, b) => (b.tarih || '').localeCompare(a.tarih || '') || (b.yil || 0) - (a.yil || 0) || (b.sira || 0) - (a.sira || 0) || b.id - a.id;
   let gor = [];
@@ -998,7 +998,7 @@ V.veri = view => {
           if (!grup.length) { sonuc.innerHTML = `<div class="msg info">${yeni.size} yeni eğitim kaydı var, ancak sertifika gerektiren (SHGM ya da Temel İSG) yeni bir iç eğitim yok.</div>`; return; }
           const r = await sertifikaGrupUret(grup, { shgm: AYAR.shgm || {}, isg: AYAR.isg || {} });
           sonuc.innerHTML = `<div class="msg ok"><b>${r.n} sertifika otomatik üretildi</b>${r.nolar.length ? ` · belge no ${r.nolar[0]}${r.nolar.length > 1 ? ' – ' + r.nolar[r.nolar.length - 1] : ''}` : ''} (${grup.length - r.atlanan.length} eğitim). Personel belgelerini Sertifikalarım ekranında görür.</div>
-            ${r.atlanan.length ? `<div class="msg err" style="margin-top:6px">Excel'de eğitimci adı olmadığı için üretilemedi: ${esc(r.atlanan.join(', '))}. Sertifika Üret ekranından eğitimciyi yazarak üretin.</div>` : ''}
+            ${r.atlanan.length ? `<div class="msg err" style="margin-top:6px">Eğitim verilerinde eğitimci adı olmadığı için üretilemedi: ${esc(r.atlanan.join(', '))}. Sertifika Üret ekranından eğitimciyi yazarak üretin.</div>` : ''}
             <div class="actions" style="margin-top:8px"><a class="btn pri" href="#sertifika">Sertifika Üret'e git (yazdırmak için)</a></div>`;
         } catch (er) { sonuc.innerHTML = `<div class="msg err">Veriler kaydedildi, ancak sertifikalar üretilemedi: ${esc(er.message)}. Sertifika Üret ekranındaki listeden üretebilirsiniz.</div>`; }
       };
