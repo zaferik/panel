@@ -285,23 +285,77 @@ function imzaHazirla(file) {
 // ---------------- kabuk ----------------
 const TABS_ADMIN = [['genel', 'Genel Bakış'], ['personel', 'Personel'], ['izin', 'İzin'], ['egitim', 'Eğitim'], ['talepler', 'Talepler'], ['sertifika', 'Sertifika Üret'], ['hesaplar', 'Hesaplar'], ['veri', 'Veri Yükle'], ['elkitabi', 'El Kitabı']];
 const TABS_PERS = [['dosyam', 'Dosyam'], ['taleplerim', 'İzin Taleplerim'], ['sertifikalarim', 'Sertifikalarım'], ['elkitabi', 'El Kitabı']];
+// Menü ikonları (çizgi ikonlar, 24×24)
+const IK = {
+  genel: 'M3 3h7v9H3zM14 3h7v5h-7zM14 12h7v9h-7zM3 16h7v5H3z',
+  personel: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  izin: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M7 14h2M11 14h2M15 14h2M7 17.5h2M11 17.5h2',
+  egitim: 'M22 9 12 4 2 9l10 5 10-5zM6 11v5c3.5 2.5 8.5 2.5 12 0v-5M22 9v6',
+  talepler: 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
+  ekibim: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM16 11l2 2 4-4',
+  bilgi: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',
+  sertifika: 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.2 13.9 7 22l5-3 5 3-1.2-8.1',
+  hesaplar: 'M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM5 21v-1a7 7 0 0 1 11.5-5.4M18 15v6M15 18h6',
+  veri: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12',
+  elkitabi: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15zM20 17v5H6.5A2.5 2.5 0 0 1 4 19.5',
+  dosyam: 'M3 5h18v14H3zM8.5 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM5.5 16c.5-1.7 1.6-2.5 3-2.5s2.5.8 3 2.5M14 9h4M14 12.5h4',
+  taleplerim: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5',
+  sertifikalarim: 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.2 13.9 7 22l5-3 5 3-1.2-8.1',
+  personelim: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  menu: 'M4 6h16M4 12h16M4 18h16', kapat: 'M6 6l12 12M18 6 6 18',
+  cikis: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+  sifre: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', tema: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
+  ara: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35',
+};
+const ikon = (k, n = 18) => `<svg class="ik" viewBox="0 0 24 24" width="${n}" height="${n}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IK[k] || IK.genel}"/></svg>`;
+const NAV_GRUP = { genel: 'Genel', personel: 'Kadro', izin: 'Kadro', egitim: 'Kadro', talepler: 'İşlemler', sertifika: 'İşlemler',
+  hesaplar: 'Yönetim', veri: 'Yönetim', dosyam: 'Benim', taleplerim: 'Benim', sertifikalarim: 'Benim', personelim: 'Ekibim', elkitabi: 'Kaynaklar' };
+const GRUP_SIRA = ['Genel', 'Benim', 'Kadro', 'İşlemler', 'Ekibim', 'Yönetim', 'Kaynaklar'];
+const SAYAC = { talepler: 'tcount', ekibim: 'ecount2', bilgi: 'bcount' };
+const bos = (ik_, b, a) => `<div class="bos"><div class="bos-ik">${ikon(ik_, 24)}</div><b>${b}</b>${a ? `<span>${a}</span>` : ''}</div>`;
+function navAc(ac) { document.body.classList.toggle('nav-acik', ac); }
 function shell() {
   const admin = GOREN();
   document.body.classList.toggle('salt-okunur', SALT());
   const me = DATA.byS[ME.profile.sicil];
-  const tabs = (admin ? TABS_ADMIN.filter(t => !SALT() || !['sertifika', 'hesaplar', 'veri'].includes(t[0])) : TABS_PERS).slice();
+  let tabs = (admin ? TABS_ADMIN.filter(t => !SALT() || !['sertifika', 'hesaplar', 'veri'].includes(t[0])) : TABS_PERS).slice();
   if (!admin && DATA.alt.length) tabs.splice(1, 0, ['personelim', 'Bağlı Personel']);
   if (DATA.ekip.length) tabs.splice(admin ? 5 : 1, 0, ['ekibim', 'Ekibim']);
   if (DATA.bilgi.length) tabs.splice(tabs.findIndex(t => t[0] === 'ekibim') + 1 || (admin ? 5 : 1), 0, ['bilgi', 'Bilgi']);
-  app.innerHTML = `<header class="top"><div class="wrap">
-    <div class="brand"><img src="logo.png" alt="Zafer Airport"><div><h1>İK Paneli</h1><small>Zafer Havalimanı · ${SALT() ? 'İzleyici (salt okunur)' : admin ? 'Yönetici' : 'Personel'}</small></div></div>
-    ${admin ? `<div class="search"><input id="q" type="search" placeholder="Personel ara: ad veya sicil…" autocomplete="off" aria-label="Personel ara"><div class="sugg" id="sugg" hidden></div></div>` : ''}
-    <div class="ust-sag"><div class="user-chip"><span><b>${esc(me ? me.ad : ME.profile.sicil)}</b></span>
-      <button class="theme-btn" id="pwBtn" type="button">Şifre</button><button class="theme-btn" id="themeBtn" type="button" aria-label="Tema değiştir">◐</button><button class="theme-btn" id="outBtn" type="button">Çıkış</button></div>
-      <button class="dg" id="dg" type="button" hidden></button></div>
-    <nav class="tabs" id="tabs">${tabs.map(([v, t]) => `<a href="#${v}" data-v="${v}">${t}${v === 'talepler' ? ' <span id="tcount"></span>' : v === 'ekibim' ? ' <span id="ecount2"></span>' : v === 'bilgi' ? ' <span id="bcount"></span>' : ''}</a>`).join('')}</nav>
-  </div></header><main class="wrap" id="view"></main>`;
+  const grup = v => NAV_GRUP[v] || (admin ? 'İşlemler' : 'Ekibim');
+  tabs = tabs.map((t, i) => [...t, grup(t[0]), i]).sort((a, b) => GRUP_SIRA.indexOf(a[2]) - GRUP_SIRA.indexOf(b[2]) || a[3] - b[3]);
+  let son = null;
+  const navHtml = tabs.map(([v, t, g], i) => { const bas = g !== son && i > 0 ? `<div class="nav-grup">${g}</div>` : ''; son = g;
+    return `${bas}<a href="#${v}" data-v="${v}">${ikon(v)}<span class="nav-ad">${t}</span>${SAYAC[v] ? `<span class="nav-say" id="${SAYAC[v]}"></span>` : ''}</a>`; }).join('');
+  const altOn = (admin ? ['genel', 'personel', 'talepler'] : ['dosyam', 'taleplerim', 'sertifikalarim']).map(v => tabs.find(t => t[0] === v)).filter(Boolean);
+  const adim = me ? me.ad : ME.profile.sicil, rolAd = SALT() ? 'İzleyici · salt okunur' : admin ? 'Yönetici' : (me && me.unvan) || 'Personel';
+  const bas = String(adim).split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('');
+  app.innerHTML = `<div class="kabuk">
+  <aside class="yan" id="yan" aria-label="Menü">
+    <div class="yan-marka"><img src="logo.png" alt="Zafer Airport"><div><b>İK Paneli</b><small>Zafer Havalimanı</small></div>
+      <button class="ikon-btn yan-kapat" type="button" id="navKapat" aria-label="Menüyü kapat">${ikon('kapat')}</button></div>
+    <nav class="tabs" id="tabs">${navHtml}</nav>
+    <div class="yan-kisi"><span class="avatar" aria-hidden="true">${esc(bas)}</span><span class="yk-ad"><b>${esc(adim)}</b><small>${esc(rolAd)}</small></span></div>
+  </aside>
+  <div class="perde" id="perde"></div>
+  <div class="ana">
+  <header class="top"><div class="wrap">
+    <button class="ikon-btn menu-btn" type="button" id="navAc" aria-label="Menüyü aç">${ikon('menu', 20)}</button>
+    <img class="top-logo" src="logo.png" alt="Zafer Airport">
+    <div class="baslik" id="baslik"></div>
+    ${admin ? `<div class="search">${ikon('ara', 16)}<input id="q" type="search" placeholder="Personel ara: ad veya sicil…" autocomplete="off" aria-label="Personel ara"><div class="sugg" id="sugg" hidden></div></div>` : '<div class="bosluk"></div>'}
+    <div class="ust-sag"><button class="dg" id="dg" type="button" hidden></button>
+      <div class="user-chip"><button class="ikon-btn theme-btn" id="themeBtn" type="button" aria-label="Tema değiştir" title="Açık / koyu tema">${ikon('tema')}</button>
+      <button class="ikon-btn theme-btn" id="pwBtn" type="button" title="Şifre değiştir" aria-label="Şifre değiştir">${ikon('sifre')}</button>
+      <button class="theme-btn cikis-btn" id="outBtn" type="button" title="Çıkış">${ikon('cikis', 16)}<span>Çıkış</span></button></div></div>
+  </div></header>
+  <main class="wrap" id="view"></main>
+  </div>
+  <nav class="alt-cubuk" id="altbar" aria-label="Hızlı menü">${altOn.map(([v, t]) => `<a href="#${v}" data-v="${v}">${ikon(v, 20)}<span>${esc(t.replace('İzin Taleplerim', 'İzinlerim').replace('Sertifikalarım', 'Belgelerim').replace('Genel Bakış', 'Genel'))}</span></a>`).join('')}
+    <button type="button" id="altMenu">${ikon('menu', 20)}<span>Menü</span></button></nav>
+  </div>`;
   $('themeBtn').onclick = temaDegistir; $('outBtn').onclick = cikis; $('pwBtn').onclick = () => sifreDegistirView(false);
+  $('navAc').onclick = () => navAc(true); $('altMenu').onclick = () => navAc(true); $('navKapat').onclick = () => navAc(false); $('perde').onclick = () => navAc(false);
   const view = $('view');
   view.addEventListener('click', e => { const t = e.target.closest('[data-p]'); if (t && !e.target.closest('a,button,input,select,textarea') && (admin || DATA.alt.includes(t.dataset.p))) location.hash = 'p-' + t.dataset.p; });
   view.addEventListener('keydown', e => { if (e.key === 'Enter') { const t = e.target.closest('[data-p]'); if (t && !admin && !DATA.alt.includes(t.dataset.p)) return; if (t && t.matches('tr,.row')) location.hash = 'p-' + t.dataset.p; } });
@@ -334,6 +388,7 @@ async function bekleyenSay() {
   let oz = 0; try { const c = await sb.from('ozluk_evrak').select('id', { count: 'exact', head: true }).eq('durum', 'bekliyor'); oz = c.error ? 0 : (c.count || 0); } catch (e) { oz = 0; }
   const n = (a.data || []).filter(ikBekliyor).length + (b.count || 0) + oz;
   const el = $('tcount'); if (el) el.innerHTML = n ? `<span class="pill p-bekliyor">${n}</span>` : '';
+  const ok = $('ok_talep'); if (ok) ok.textContent = n;
 }
 function route() {
   if (!ME || !DATA) return;
@@ -356,7 +411,9 @@ function route() {
     else if (V[h] && !(SALT() && ['sertifika', 'hesaplar', 'veri'].includes(h))) V[h](view);
     else { V.genel(view); tab = 'genel'; }
   }
-  document.querySelectorAll('#tabs a').forEach(a => a.classList.toggle('on', a.dataset.v === tab));
+  document.querySelectorAll('#tabs a, #altbar a').forEach(a => a.classList.toggle('on', a.dataset.v === tab));
+  const sec = document.querySelector(`#tabs a[data-v="${tab}"] .nav-ad`), bt = $('baslik'); if (bt) bt.textContent = sec ? sec.textContent : '';
+  navAc(false);
   window.scrollTo(0, 0);
 }
 function aramaKur() {
@@ -423,12 +480,27 @@ V.genel = view => {
   const y0 = `${TODAY.getFullYear()}-01-01`;
   const yeni = ACT.filter(p => p.sirket_giris && p.sirket_giris >= y0).length, ayr = DATA.P.filter(p => p.durum === 'Pasif' && p.cikis && p.cikis >= y0).length;
   const aylik = rapor.izin_aylik || [], yillar = rapor.egitim_yillar || [];
-  view.innerHTML = `<h2>Genel Bakış</h2><p class="sub">İzin bakiyesi ${AYU[DONEM]} sonu; SHGM eğitim durumu ${esc((rapor.egitim_asof || '').replace(' tarihi itibarıyla hesaplanmıştır.', ''))} itibarıyla.</p>
+  // Bugün özeti
+  const saat = new Date().getHours(), selam = saat < 12 ? 'Günaydın' : saat < 18 ? 'İyi günler' : 'İyi akşamlar';
+  const benAd = ((DATA.byS[ME.profile.sicil] || {}).ad || '').split(' ').filter(Boolean)[0] || '';
+  const ilkHarf = w => w ? w[0].toLocaleUpperCase('tr-TR') + w.slice(1).toLocaleLowerCase('tr-TR') : '';
+  const izinde = ACT.filter(p => (DATA.leaveRecs[p.sicil] || []).some(r => r[0] && r[0] <= ISO_TODAY && (r[1] || r[0]) >= ISO_TODAY));
+  const d30 = new Date(TODAY.getTime() + 30 * 864e5).toISOString().slice(0, 10);
+  let dolacak = 0; ACT.forEach(p => p.S.forEach(r => { if (r[4] && r[4] >= ISO_TODAY && r[4] <= d30) dolacak++; }));
+  const tarihUzun = TODAY.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'long' });
+  const kart = (href, ik_, renk, id, sayi, yazi, ek = '') => `<${href ? `a href="${href}"` : 'div'} class="ok-kart" style="--c:${renk}"${ek}><span class="ok-ik">${ikon(ik_, 21)}</span><div><b${id ? ` id="${id}"` : ''}>${sayi}</b><span>${yazi}</span></div></${href ? 'a' : 'div'}>`;
+  view.innerHTML = `<div class="bugun"><div><h2>${selam}${benAd ? ', ' + esc(ilkHarf(benAd)) : ''}</h2><p class="sub">${esc(tarihUzun)} · İzin bakiyesi ${AYU[DONEM]} sonu, SHGM eğitim durumu ${esc((rapor.egitim_asof || '').replace(' tarihi itibarıyla hesaplanmıştır.', ''))} itibarıyla.</p></div></div>
+  <div class="ozet-kart">
+    ${kart('#talepler', 'talepler', 'var(--brand)', 'ok_talep', '–', 'Onay bekleyen talep')}
+    ${kart('#izin', 'izin', 'var(--info)', '', izinde.length, 'Bugün izinde', izinde.length ? ` title="${esc(izinde.map(p => p.ad).join(', '))}"` : '')}
+    ${kart('#egitim', 'egitim', 'var(--warn)', '', dolacak, 'Süresi 30 gün içinde dolacak eğitim')}
+    <button type="button" class="ok-kart" id="ok_dg" style="--c:var(--none);font:inherit;text-align:left;cursor:pointer"><span class="ok-ik">${PASTA.replace(/16/g, '21')}</span><div><b id="ok_dgs">–</b><span>Bugün doğum günü</span></div></button>
+  </div>
   <div class="grid g4">
-    <div class="panel kpi"><div class="lbl">Aktif personel</div><div class="val">${ACT.length}</div><div class="note">${female} kadın · ${ACT.length - female} erkek · ort. kıdem ${fn(ort, 1)} yıl</div><div class="note">${TODAY.getFullYear()}: ${yeni} giriş · ${ayr} çıkış</div></div>
-    <div class="panel kpi"><div class="lbl">Kalan izin · ${AYU[DONEM]} sonu</div><div class="val">${fn(kalanT, 1)} <small>gün</small></div><div class="note">Kişi başı ${fn(kalanT / (ACT.filter(p => p.kalan != null).length || 1), 1)} gün · Ocak–${AYU[DONEM]} kullanılan ${fn(kulT, 1)} gün</div></div>
-    <div class="panel kpi"><div class="lbl">SHGM zorunlu eğitim uyumu</div><div class="val">${pct(uy)}</div>${stack(tc, tz)}<div class="note" style="margin-top:6px">${fn(tz)} zorunlu eğitim ataması</div></div>
-    <div class="panel kpi"><div class="lbl">Eksik zorunlu eğitim</div><div class="val">${fn(tc['SÜRESİ DOLDU'] + tc['ALINMAMIŞ'])}</div><div class="note">${tc['SÜRESİ DOLDU']} süresi dolmuş · ${tc['ALINMAMIŞ']} hiç alınmamış · ${tc['YAKLAŞIYOR']} yaklaşan</div></div>
+    <div class="panel kpi">${ikon('personel', 22).replace('class="ik"', 'class="ik kpi-ik"')}<div class="lbl">Aktif personel</div><div class="val">${ACT.length}</div><div class="note">${female} kadın · ${ACT.length - female} erkek · ort. kıdem ${fn(ort, 1)} yıl</div><div class="note">${TODAY.getFullYear()}: ${yeni} giriş · ${ayr} çıkış</div></div>
+    <div class="panel kpi">${ikon('izin', 22).replace('class="ik"', 'class="ik kpi-ik"')}<div class="lbl">Kalan izin · ${AYU[DONEM]} sonu</div><div class="val">${fn(kalanT, 1)} <small>gün</small></div><div class="note">Kişi başı ${fn(kalanT / (ACT.filter(p => p.kalan != null).length || 1), 1)} gün · Ocak–${AYU[DONEM]} kullanılan ${fn(kulT, 1)} gün</div></div>
+    <div class="panel kpi">${ikon('egitim', 22).replace('class="ik"', 'class="ik kpi-ik"')}<div class="lbl">SHGM zorunlu eğitim uyumu</div><div class="val">${pct(uy)}</div>${stack(tc, tz)}<div class="note" style="margin-top:6px">${fn(tz)} zorunlu eğitim ataması</div></div>
+    <div class="panel kpi">${ikon('sertifika', 22).replace('class="ik"', 'class="ik kpi-ik"')}<div class="lbl">Eksik zorunlu eğitim</div><div class="val">${fn(tc['SÜRESİ DOLDU'] + tc['ALINMAMIŞ'])}</div><div class="note">${tc['SÜRESİ DOLDU']} süresi dolmuş · ${tc['ALINMAMIŞ']} hiç alınmamış · ${tc['YAKLAŞIYOR']} yaklaşan</div></div>
   </div>
   <div class="grid g2" style="margin-top:16px">
     <div class="panel"><h3>Departmanlara göre aktif personel</h3><div class="hb">${depC.map(([d, c]) => `<span>${esc(d)}</span><div class="tr"><i style="width:${c / maxD * 100}%;background:var(--bar)"></i></div><span class="v">${c}</span>`).join('')}</div></div>
@@ -443,6 +515,12 @@ V.genel = view => {
     <div class="panel"><h3>Yıl sonuna kadar izin hakedişi gelecekler</h3><div class="list">${hak.slice(0, 10).map(p => `<div class="row" tabindex="0" data-p="${esc(p.sicil)}"><span class="nm">${esc(p.ad)}</span><span class="meta">${fd(p.L.hakedis_tarihi)} · +${fn(p.L.hakedis)} gün</span></div>`).join('') || '<p class="mini">Kayıt yok.</p>'}</div>${hak.length > 10 ? `<p class="mini">+${hak.length - 10} kişi daha</p>` : ''}</div>
     <div class="panel"><h3>Personel profili</h3>${profil()}</div>
   </div>${foot()}`;
+  bekleyenSay();
+  (async () => {
+    let L = []; try { const { data, error } = await sb.rpc('bugun_dogan'); L = error ? [] : (data || []); } catch (e) { L = []; }
+    const b = $('ok_dgs'); if (b) b.textContent = L.length;
+    const k = $('ok_dg'); if (k) k.onclick = () => { const d = $('dg'); if (d && !d.hidden) d.click(); else modal('<div class="bos"><div class="bos-ik">' + PASTA.replace(/16/g, '26') + '</div><b>Bugün doğum günü olan yok</b><span>Doğum günü olan olduğunda üst barda da görünür.</span></div><div class="acts"><button class="btn pri" data-close>Kapat</button></div>'); };
+  })();
 };
 function profil() {
   const { ACT } = DATA;
@@ -1032,11 +1110,22 @@ function kisiView(sic, admin, amir) {
   const S = p.S.slice().sort((a, b) => sOrd[a[6]] - sOrd[b[6]]);
   const notes = admin ? (DATA.rapor.notlar || []).filter(n => n.startsWith(p.ad + ':')) : [];
   const renk = { GEÇERLİ: 'ok', ALINDI: 'info', YAKLAŞIYOR: 'warn', 'SÜRESİ DOLDU': 'bad', ALINMAMIŞ: 'none' };
+  // Kimlik kartının sağındaki özet: kalan izin halkası + kıdem, hakediş, sıradaki eğitim
+  const hakT = L ? (Number(L.hakedis) || 0) + Math.max(Number(L.devreden) || 0, 0) : 0;
+  const yuzde = L && hakT > 0 && p.kalan != null ? Math.max(0, Math.min(100, p.kalan / hakT * 100)) : 0;
+  const eksik = (p.cnt['SÜRESİ DOLDU'] || 0) + (p.cnt['ALINMAMIŞ'] || 0);
+  const sira = p.S.filter(r => r[4] && ['YAKLAŞIYOR', 'GEÇERLİ'].includes(r[6])).sort((a, b) => String(a[4]).localeCompare(String(b[4])))[0];
+  const egKut = eksik ? `<div class="kotu"><span>Eğitim</span><b>${eksik} eksik zorunlu eğitim</b></div>`
+    : sira ? `<div class="${sira[6] === 'YAKLAŞIYOR' ? 'sicak' : 'iyi'}"><span>Sıradaki tazeleme</span><b>${esc(sira[1])} · ${fd(sira[4])}</b></div>`
+    : p.S.length ? '<div class="iyi"><span>Eğitim</span><b>Zorunlu eğitimler tamam</b></div>' : '';
+  const ozet = `<div class="kim-ozet">${L && p.kalan != null ? `<div class="halka" style="--p:${yuzde.toFixed(1)}" title="Kalan izin / yıllık hakediş + devreden"><div><b class="${p.kalan < 0 ? 'neg' : ''}">${fn(p.kalan, 1)}</b><small>GÜN İZİN</small></div></div>` : ''}
+    <div class="kim-bilgi">${p.kidem != null ? `<div><span>Kıdem</span><b>${fn(p.kidem, 1)} yıl${p.gruba_giris ? ` · ${fd(p.gruba_giris)}'den beri` : ''}</b></div>` : ''}
+      ${L && L.hakedis_tarihi ? `<div><span>Sonraki hakediş</span><b>${fd(L.hakedis_tarihi)}</b></div>` : ''}${egKut}</div></div>`;
   return `${geri}
-  <div class="dossier-head"><div class="badge" aria-hidden="true">${esc(ini)}</div><div class="who"><h2>${esc(p.ad)}</h2><div class="sub" style="margin:0">${esc(p.unvan || '—')} · ${esc(p.dep)}${p.bolum && p.bolum !== p.dep ? ' / ' + esc(p.bolum) : ''}</div>
-  <div class="tags"><span class="tag">Sicil ${esc(p.sicil)}</span>${pill(p.durum)}${p.by_my ? `<span class="tag">${esc(p.by_my)}</span>` : ''}${p.grade ? `<span class="tag">Grade ${esc(p.grade)}</span>` : ''}${p.calisma_yeri ? `<span class="tag">${esc(p.calisma_yeri)}</span>` : ''}${p.norm ? `<span class="tag">${esc(p.norm)}</span>` : ''}${p.shgm_ek_gorev ? `<span class="tag">SHGM ek görev: ${esc(p.shgm_ek_gorev)}</span>` : ''}</div></div>
+  <div class="dossier-head kimlik"><div class="badge" aria-hidden="true">${esc(ini)}</div><div class="who"><h2>${esc(p.ad)}</h2><div class="kim-alt">${esc(p.unvan || '—')} · ${esc(p.dep)}${p.bolum && p.bolum !== p.dep ? ' / ' + esc(p.bolum) : ''}</div>
+  <div class="tags"><span class="tag">Sicil ${esc(p.sicil)}</span>${pill(p.durum)}${p.by_my ? `<span class="tag">${esc(p.by_my)}</span>` : ''}${p.grade ? `<span class="tag">Grade ${esc(p.grade)}</span>` : ''}${p.calisma_yeri ? `<span class="tag">${esc(p.calisma_yeri)}</span>` : ''}${p.norm ? `<span class="tag">${esc(p.norm)}</span>` : ''}${p.shgm_ek_gorev ? `<span class="tag">SHGM ek görev: ${esc(p.shgm_ek_gorev)}</span>` : ''}</div>
   ${admin && ME.profile.role === 'admin' && !ONIZ ? `<div class="actions"><button class="btn" type="button" data-oniz="${esc(p.sicil)}" title="Paneli bu personelin gördüğü şekilde açar; işlem yapılamaz">Personel gözüyle bak</button></div>` : ''}
-  ${!admin && !amir ? `<div class="actions"><a class="btn pri" href="#taleplerim">İzin talep et</a><a class="btn" href="#sertifikalarim">Sertifika yükle</a></div>` : ''}</div>
+  ${!admin && !amir ? `<div class="actions"><a class="btn pri" href="#taleplerim">İzin talep et</a><a class="btn" href="#sertifikalarim">Sertifika yükle</a></div>` : ''}</div>${ozet}</div>
   ${notes.map(n => `<div class="alert">Veri notu: ${esc(n.slice(p.ad.length + 2))}</div>`).join('')}
   ${amir ? '' : '<div id="oz_box" style="margin-bottom:16px"></div>'}
   <div class="grid g2">
@@ -1138,7 +1227,7 @@ async function taleplerimView(view) {
     if (error) { box.innerHTML = `<div class="msg err">${esc(error.message)}</div>`; return; }
     const bek = data.filter(t => t.durum === 'bekliyor' || t.durum === 'sef_onayladi').reduce((a, t) => a + Number(t.gun), 0);
     const tb2 = $('tbek'); if (tb2) tb2.innerHTML = bek ? ` · onay bekleyen talepleriniz: ${fn(bek, 1)} gün` : '';
-    box.innerHTML = data.length ? `<div class="list">${data.map(t => `<div class="row" style="cursor:default"><span class="nm">${fd(t.baslangic)} – ${fd(t.bitis)} · ${fn(t.gun, 1)} gün<br><span class="mini">${esc(t.tur)}${t.aciklama ? ' · ' + esc(t.aciklama) : ''}${t.sef_notu ? `<br>Şef notu: ${esc(t.sef_notu)}` : ''}${t.admin_notu ? `<br>İK notu: ${esc(t.admin_notu)}` : ''}</span></span><span class="meta">${tpillT(t)}${t.durum === 'bekliyor' ? `<br><button class="btn sm" data-iptal="${t.id}" style="margin-top:4px">İptal et</button>` : ''}</span></div>`).join('')}</div>` : '<p class="mini">Henüz talebiniz yok.</p>';
+    box.innerHTML = data.length ? `<div class="list">${data.map(t => `<div class="row" style="cursor:default"><span class="nm">${fd(t.baslangic)} – ${fd(t.bitis)} · ${fn(t.gun, 1)} gün<br><span class="mini">${esc(t.tur)}${t.aciklama ? ' · ' + esc(t.aciklama) : ''}${t.sef_notu ? `<br>Şef notu: ${esc(t.sef_notu)}` : ''}${t.admin_notu ? `<br>İK notu: ${esc(t.admin_notu)}` : ''}</span></span><span class="meta">${tpillT(t)}${t.durum === 'bekliyor' ? `<br><button class="btn sm" data-iptal="${t.id}" style="margin-top:4px">İptal et</button>` : ''}</span></div>`).join('')}</div>` : bos('taleplerim', 'Henüz izin talebin yok', 'Yeni bir talep oluşturduğunda burada durumunu takip edebilirsin.');
     box.querySelectorAll('[data-iptal]').forEach(b => b.onclick = async () => { b.disabled = true; const { error: er } = await sb.rpc('izin_talep_iptal', { p_id: +b.dataset.iptal }); if (er) alertMsg(er.message); liste(); });
   };
   liste();
@@ -1272,7 +1361,7 @@ async function sertifikalarimView(view) {
     box.className = '';
     if (r.error) { box.innerHTML = '<p class="mini">Belgeler şu anda listelenemiyor.</p>'; return; }
     const L = r.data || [];
-    box.innerHTML = L.length ? `<p class="mini" style="margin-top:-4px">Yazdır'a basınca açılan pencerede yazıcı olarak <b>PDF olarak kaydet</b>'i seçerseniz belge PDF dosyası olarak iner.</p><div class="list">${L.map(b => `<div class="row" style="cursor:default"><span class="nm">${esc(b.egitim)}<br><span class="mini">${b.seri_no ? `Belge No ${esc(b.seri_no)} · ` : ''}${fd(b.tarih)}${b.saat ? ' · ' + fn(b.saat, 1) + ' saat' : ''}</span></span><span class="meta"><div class="actions" style="justify-content:flex-end"><button class="btn sm" data-gb="${b.id}">Görüntüle</button><button class="btn sm pri" data-yb="${b.id}">Yazdır / PDF</button></div></span></div>`).join('')}</div>${Sertifika.imzaSayisi() ? '' : '<p class="mini" style="margin-top:8px">Belgeleriniz imzasız gösterilir; imzalı aslı için İnsan &amp; Kültür birimine başvurabilirsiniz.</p>'}` : '<p class="mini">Adınıza düzenlenmiş belge bulunmuyor.</p>';
+    box.innerHTML = L.length ? `<p class="mini" style="margin-top:-4px">Yazdır'a basınca açılan pencerede yazıcı olarak <b>PDF olarak kaydet</b>'i seçerseniz belge PDF dosyası olarak iner.</p><div class="list">${L.map(b => `<div class="row" style="cursor:default"><span class="nm">${esc(b.egitim)}<br><span class="mini">${b.seri_no ? `Belge No ${esc(b.seri_no)} · ` : ''}${fd(b.tarih)}${b.saat ? ' · ' + fn(b.saat, 1) + ' saat' : ''}</span></span><span class="meta"><div class="actions" style="justify-content:flex-end"><button class="btn sm" data-gb="${b.id}">Görüntüle</button><button class="btn sm pri" data-yb="${b.id}">Yazdır / PDF</button></div></span></div>`).join('')}</div>${Sertifika.imzaSayisi() ? '' : '<p class="mini" style="margin-top:8px">Belgeleriniz imzasız gösterilir; imzalı aslı için İnsan &amp; Kültür birimine başvurabilirsiniz.</p>'}` : bos('sertifikalarim', 'Adına düzenlenmiş belge yok', 'Katıldığın eğitimlerin sertifikaları burada görünür.');
     box.querySelectorAll('[data-yb]').forEach(x => x.onclick = () => Sertifika.yazdir([L.find(b => b.id === +x.dataset.yb)]));
     box.querySelectorAll('[data-gb]').forEach(x => x.onclick = () => belgeGoster(L.find(b => b.id === +x.dataset.gb)));
   })();
@@ -1280,7 +1369,7 @@ async function sertifikalarimView(view) {
     const { data, error } = await sb.from('sertifika').select('*').eq('sicil', ME.profile.sicil).order('created_at', { ascending: false });
     const box = $('sl'); box.className = '';
     if (error) { box.innerHTML = `<div class="msg err">${esc(error.message)}</div>`; return; }
-    box.innerHTML = data.length ? `<div class="list">${data.map(t => `<div class="row" style="cursor:default"><span class="nm">${esc(t.egitim_adi)}<br><span class="mini">${fd(t.tarih)}${t.saat ? ' · ' + fn(t.saat, 1) + ' saat' : ''}${t.kurum ? ' · ' + esc(t.kurum) : ''}${t.admin_notu ? `<br>İK notu: ${esc(t.admin_notu)}` : ''}</span></span><span class="meta">${tpill(t.durum)}<br><button class="btn sm" data-belge="${esc(t.dosya_yolu)}" style="margin-top:4px">Belgeyi aç</button></span></div>`).join('')}</div>` : '<p class="mini">Henüz belge yüklemediniz.</p>';
+    box.innerHTML = data.length ? `<div class="list">${data.map(t => `<div class="row" style="cursor:default"><span class="nm">${esc(t.egitim_adi)}<br><span class="mini">${fd(t.tarih)}${t.saat ? ' · ' + fn(t.saat, 1) + ' saat' : ''}${t.kurum ? ' · ' + esc(t.kurum) : ''}${t.admin_notu ? `<br>İK notu: ${esc(t.admin_notu)}` : ''}</span></span><span class="meta">${tpill(t.durum)}<br><button class="btn sm" data-belge="${esc(t.dosya_yolu)}" style="margin-top:4px">Belgeyi aç</button></span></div>`).join('')}</div>` : bos('veri', 'Henüz belge yüklemedin', 'Dışarıda aldığın bir eğitimin sertifikasını yukarıdan yükleyebilirsin.');
     box.querySelectorAll('[data-belge]').forEach(b => b.onclick = async () => { const { data: u, error: er } = await sb.storage.from('sertifikalar').createSignedUrl(b.dataset.belge, 120); if (er) { alertMsg(er.message); return; } window.open(u.signedUrl, '_blank', 'noopener'); });
   };
   liste();
