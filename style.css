@@ -168,12 +168,23 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,tr
 .auth-art{position:relative;overflow:hidden;background:var(--brand);color:#fff;display:flex;flex-direction:column;justify-content:space-between;
   padding-block:44px;padding-left:max(48px,env(safe-area-inset-left,0px));padding-right:48px;min-height:100vh}
 .auth-art svg.scene{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+/* Zafer Havalimanı fotoğrafı: siyah-beyaz, kırmızıyla çarpılarak (duotone) sahnenin arkasında */
+.auth-art::before{content:"";position:absolute;inset:0;background:url(giris.jpg) center 62%/cover no-repeat;filter:grayscale(1) contrast(1.15) brightness(1.05);mix-blend-mode:multiply;opacity:.9;pointer-events:none}
+.auth-art::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,rgba(200,16,26,.88) 0%,rgba(200,16,26,.62) 42%,rgba(200,16,26,.12) 100%),
+             linear-gradient(180deg,rgba(110,4,10,0) 60%,rgba(110,4,10,.55) 100%)}
+.auth-art .kavis{opacity:.16}
+.auth-art .rota{opacity:.35}
+.auth-art>*{position:relative;z-index:1}
+.auth-art>svg.scene{position:absolute}
 .auth-art .copy{position:relative;max-width:30rem}
 .auth-art .eyebrow{font-size:12.5px;letter-spacing:.22em;font-weight:600;opacity:.92;text-transform:uppercase}
 .auth-art h1{font-family:var(--display);font-weight:700;font-size:clamp(40px,5vw,64px);line-height:.98;margin:14px 0 14px;letter-spacing:.01em;text-wrap:balance}
 .auth-art p{font-size:16.5px;line-height:1.5;opacity:.95;margin:0;max-width:26rem}
 .auth-art .feats{position:relative;display:flex;flex-wrap:wrap;gap:8px}
-.auth-art .feats span{border:1px solid rgba(255,255,255,.55);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;background:var(--brand)}
+.auth-art .feats{gap:0 22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.35);max-width:34rem}
+.auth-art .feats span{font-size:13px;font-weight:500;letter-spacing:.04em;opacity:.92;display:inline-flex;align-items:center;gap:8px}
+.auth-art .feats span::before{content:"";width:5px;height:5px;border-radius:50%;background:#fff;opacity:.8}
 .auth-art .codes{position:relative;font-family:var(--display);font-size:15px;letter-spacing:.3em;opacity:.85;margin-top:14px}
 .auth-side{display:flex;flex-direction:column;justify-content:center;align-items:center;padding-block:40px;
   padding-left:max(24px,env(safe-area-inset-left,0px));padding-right:max(24px,env(safe-area-inset-right,0px))}
@@ -207,6 +218,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,tr
   .auth-art p{font-size:15px}
   .auth-art .feats,.auth-art .codes{display:none}
   .auth-art .plane{opacity:.3}
+  .auth-art .kavis{opacity:.2}
+  .auth-art .copy{text-shadow:0 1px 12px rgba(90,0,6,.45)}
+  .auth-art::before{background-position:center 70%}
   .auth-art svg.scene{inset:auto 0 0 0;height:auto}
   .auth-art .eyebrow{font-size:11px;letter-spacing:.16em}
   .auth-side{padding-block:28px 40px}

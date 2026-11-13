@@ -120,7 +120,7 @@ const SAHNE = `<svg class="scene" viewBox="0 0 800 900" preserveAspectRatio="xMi
     <clipPath id="ac"><rect x="-40" y="0" width="0" height="900"><animate attributeName="width" from="0" to="880" dur="1.8s" begin="0.15s" fill="freeze" calcMode="spline" keySplines=".2 .7 .2 1" keyTimes="0;1"/></rect></clipPath>
   </defs>
   <rect width="800" height="900" fill="url(#isik)"/>
-  <g clip-path="url(#ac)"><path fill="#fff" transform="translate(0 -62) scale(2.2)" d="${KAVIS}"/></g>
+  <g class="kavis" clip-path="url(#ac)"><path fill="#fff" transform="translate(0 -62) scale(2.2)" d="${KAVIS}"/></g>
   <path class="rota" d="M300 520C380 430 450 360 520 300" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 14" opacity=".7"/>
   <g class="plane"><g transform="translate(590 205) rotate(40) scale(1.6) translate(-100 -128)">
     <g class="iz" fill="none" stroke="url(#iz)" stroke-linecap="round">
@@ -136,7 +136,7 @@ function loginView(msg) {
     <div class="copy"><div class="eyebrow">Zafer Havalimanı · İnsan &amp; Kültür</div>
       <h1>Personel Portalı</h1>
       <p>Özlük bilgileriniz, izin bakiyeniz ve eğitimleriniz tek yerde. İzin talebinizi buradan iletin, sertifikanızı buradan yükleyin.</p></div>
-    <div><div class="feats"><span>Özlük dosyası</span><span>Yıllık izin</span><span>SHGM eğitimleri</span><span>Sertifika yükleme</span></div></div>
+    <div><div class="feats"><span>Özlük dosyası</span><span>Yıllık izin</span><span>SHGM eğitimleri</span><span>Sertifika yükleme</span></div><div class="codes">LTBZ · KZR</div></div>
   </section>
   <section class="auth-side"><div class="auth-box">
     <img class="logo" src="logo.png" alt="Zafer Airport">
