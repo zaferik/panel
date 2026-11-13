@@ -235,6 +235,9 @@ async function loadData() {
   try { const { data, error } = await sb.from('vardiya_birim').select('kod,ad,alan,deger,sorumlu,ayar,sira').order('sira'); vBirim = error ? [] : (data || []); } catch (e) { vBirim = []; }
   if (!admin && vBirim.length) { try { const { count, error } = await sb.from('vardiya').select('tarih', { count: 'exact', head: true }).eq('sicil', ME.profile.sicil); vardiyaVar = !error && count > 0; } catch (e) { vardiyaVar = false; } }
   const vardiyaSorumlu = vBirim.filter(b => (b.sorumlu || []).includes(ME.profile.sicil));
+  // Birimi vardiyalı olan personel, plan yayınlanmamış olsa da Vardiyam sekmesini görür
+  if (!admin && !vardiyaVar) { const ben = pers.find(p => p.sicil === ME.profile.sicil), f = x => String(x || '').trim().toLocaleLowerCase('tr');
+    if (ben) vardiyaVar = vBirim.some(b => f(b.alan === 'bolum' ? ben.bolum : ben.departman) === f(b.deger)); }
   await imzalariYukle();
   const shgm = group(ed, r => [r.kod, r.egitim, r.son_tarih, r.periyot, r.bitis, r.kalan_gun, r.durum]);
   const hist = group(ek, r => [r.tarih, r.egitim, r.shgm, r.saat, r.egitmen, r.ic_dis, r.tur]);

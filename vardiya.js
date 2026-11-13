@@ -470,7 +470,7 @@ function vrOtoPlanla({ koru = true, htYaz = false } = {}) {
   const ozel = v => { const c = vrCoz(v); return c.tur === 'vardiya' || c.tur === 'net'; };
   // Kişi durumu
   const K = VR.kisi.map(p => {
-    const deg = VR.plan[p.sicil], izin = GOREN() ? vrIzinGunleri(p.sicil, ay) : new Set();
+    const deg = VR.plan[p.sicil].slice(), izin = GOREN() ? vrIzinGunleri(p.sicil, ay) : new Set();
     const st = { p, deg, izin, vard: [], gunler: new Set(), net: 0, gece: 0, hs: 0, sefer: 0 };
     const ekle = (v, d) => { const c = vrCoz(v); if (c.tur === 'net') { st.vard.push({ s: d * 1440 + 9 * 60, e: d * 1440 + 9 * 60 + c.net * 60, d, gece: false, net: c.net }); }
       else if (c.tur === 'vardiya') { const g = vrHesap([v], A, vrAyBas(ay)).G[0]; const s = (d * 24 + c.bas - (A.gece_gun === 'bitis' && c.bas + c.sure > 24.01 ? 24 : 0)) * 60; st.vard.push({ s, e: s + c.sure * 60, d, gece: g.gece, net: g.net }); }
@@ -534,7 +534,9 @@ function vrOtoPlanla({ koru = true, htYaz = false } = {}) {
       while (var_ < O.sefer_kisi) { const st = sec(x); if (!st) { rapor.eksik.push({ d, k: `${o.sefer.ucus_no} (${v})`, eksik: O.sefer_kisi - var_ }); break; } ata(st, { ...x }, true); var_++; rapor.sefer_ek++; rapor.atanan++; }
     });
   }
+  if (!rapor.atanan && !rapor.eksik.length) return { ...rapor, bos: true, adalet: [] };
   if (htYaz) K.forEach(st => st.deg.forEach((v, d) => { if (!v && !st.izin.has(d)) st.deg[d] = 'HT'; }));
+  K.forEach(st => { VR.plan[st.p.sicil] = st.deg; });
   rapor.adalet = K.map(st => ({ ad: st.p.ad, net: st.net, gece: st.gece, hs: st.hs, sefer: st.sefer }));
   return rapor;
 }
@@ -554,7 +556,9 @@ function vrOtoModal() {
     const g = bg.querySelector('#vo_git'); if (!g) return;
     g.onclick = () => {
       const r = vrOtoPlanla({ koru: bg.querySelector('#vo_koru').checked, htYaz: bg.querySelector('#vo_ht').checked });
-      close(); const k = VR.kirli; vrCiz(); vrKirli(true);
+      close();
+      if (r.bos) { vrCiz(); alertMsg(`Bu ay için yazılacak vardiya çıkmadı: ${(VR.seferler || []).length ? 'günlük kişi ihtiyacı girilmemiş' : 'bu ayda sefer yok ve günlük kişi ihtiyacı girilmemiş'}. Kurallar ve sorumlular ekranından ihtiyaçları girin${(VR.seferler || []).length ? '' : ' ya da seferli ayı seçin'}.`); return; }
+      const k = VR.kirli; vrCiz(); vrKirli(true);
       const a = r.adalet, mm = f => a.length ? `${fn(Math.min(...a.map(f)), 1)} – ${fn(Math.max(...a.map(f)), 1)}` : '—';
       modal(`<h3>Plan hazır</h3><p><b>${r.atanan}</b> vardiya yazıldı${r.olay ? `; ${r.olay} sefer penceresi için <b>${r.sefer_ek}</b> ek görev` : ''}. Kontrol edip <b>Kaydet</b>'e basın.</p>
         <div class="tbl"><table><thead><tr><th>Kişi başı</th><th class="n">En az – en çok</th></tr></thead><tbody>
