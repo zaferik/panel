@@ -600,9 +600,13 @@ function karar(tbl, id, k, done) {
 const nkS = t => String(t || '').trim().toLocaleUpperCase('tr-TR').replace(/İ/g, 'I').replace(/Ş/g, 'S').replace(/Ğ/g, 'G').replace(/Ü/g, 'U').replace(/Ö/g, 'O').replace(/Ç/g, 'C').replace(/\./g, '').replace(/\s+/g, ' ');
 const kayitAnahtar = (sicil, tarih, egitim) => `${sicil}|${tarih}|${nkS(egitim)}`;
 // Sertifikası düzenlenmemiş iç eğitimleri (SHGM → numaralı sertifika, Temel İSG → katılım belgesi) gruplar
+const SB_STOP = new Set(['egitimi', 'egitim', 've', 'ile', 'temel', 'tazeleme', 'kursu', 'kurs']);
+const sbTok = t => new Set(fold(t || '').split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !SB_STOP.has(w)));
+// Bu belge, bu eğitimin belgesi mi? (aynı şablon, tarih eşleşir, eğitim adında ortak kelime)
+const sbEslesir = (b, sab, tarih, bas, T) => b.sablon === sab && (b.tarih === tarih || b.tarih === bas || (b.tarih <= tarih && (b.tarih_bitis || b.tarih) >= tarih))
+  && ([...sbTok(b.egitim)].some(w => T.has(w)) || !T.size);
 function sertifikaGruplari(B, AYAR, { yil, sadece } = {}) {
-  const ST_W = new Set(['egitimi', 'egitim', 've', 'ile', 'temel', 'tazeleme', 'kursu', 'kurs']);
-  const tok = t => new Set(fold(t || '').split(/[^a-z0-9]+/).filter(w => w.length >= 4 && !ST_W.has(w)));
+  const tok = sbTok;
   const sablonOf = h => h[2] ? 'shgm' : /is sagligi|\bisg\b/.test(fold(h[1] || '')) ? 'isg' : null;
   const icMi = h => !/dis/.test(fold(h[5] || ''));
   const basMap = (DATA.rapor && DATA.rapor.egitim_baslangic) || {};
@@ -613,8 +617,7 @@ function sertifikaGruplari(B, AYAR, { yil, sadece } = {}) {
     if (sadece) { if (!sadece.has(kayitAnahtar(p.sicil, tarih, h[1]))) return; } else if (yil && tarih.slice(0, 4) !== String(yil)) return;
     const sab = sablonOf(h); if (!sab || !icMi(h)) return;
     const bas = basMap[nkS(h[1]) + '|' + tarih] || null, T = tok(h[1]);
-    const var_ = (certBy[p.sicil] || []).some(b => b.sablon === sab && (b.tarih === tarih || b.tarih === bas || (b.tarih <= tarih && (b.tarih_bitis || b.tarih) >= tarih))
-      && ([...tok(b.egitim)].some(w => T.has(w)) || !T.size));
+    const var_ = (certBy[p.sicil] || []).some(b => sbEslesir(b, sab, tarih, bas, T));
     const key = [sab, h[1], tarih, h[4] || ''].join('|');
     const g = G.get(key) || { key, sab, egitim: h[1], bit: tarih, bas, saat: h[3], egitmen: h[4] || '', hepsi: [], eksik: [] };
     g.hepsi.push(p.sicil); if (!var_) g.eksik.push(p.sicil); G.set(key, g);
@@ -628,9 +631,14 @@ async function sertifikaGrupUret(grup, A) {
   for (const g of grup) {
     if (g.sab === 'shgm' && !g.egitmen) { atlanan.push(`${g.egitim} (${fd(g.bit)})`); continue; }
     const alanlar = g.sab === 'isg' ? { ...(A.isg || {}) } : { ...(A.shgm || {}), egitmen: g.egitmen };
-    const kisiler = g.eksik.map(s => DATA.byS[s]).filter(Boolean).map(p => ({ sicil: p.sicil, ad: p.ad, unvan: p.unvan || '' }));
+    // Son kontrol: bu arada (başka bir basışta / sekmede) belge üretildiyse o kişiyi atla
+    const tarih = g.bas || g.bit, T = sbTok(g.egitim);
+    const { data: mevcut, error: me } = await sb.from('sertifika_belge').select('sicil,egitim,tarih,tarih_bitis,sablon,iptal').in('sicil', g.eksik).eq('sablon', g.sab).eq('iptal', false);
+    if (me) throw new Error(me.message);
+    const var_ = new Set((mevcut || []).filter(b => sbEslesir(b, g.sab, g.bit, g.bas, T)).map(b => b.sicil));
+    const kisiler = g.eksik.filter(s => !var_.has(s)).map(s => DATA.byS[s]).filter(Boolean).map(p => ({ sicil: p.sicil, ad: p.ad, unvan: p.unvan || '' }));
     if (!kisiler.length) continue;
-    const { data, error } = await sb.rpc('sertifika_uret', { p: { sablon: g.sab, egitim: g.egitim, tarih: g.bas || g.bit, tarih_bitis: g.bas && g.bas !== g.bit ? g.bit : null,
+    const { data, error } = await sb.rpc('sertifika_uret', { p: { sablon: g.sab, egitim: g.egitim, tarih, tarih_bitis: g.bas && g.bas !== g.bit ? g.bit : null,
       saat: g.saat == null || g.saat === '' ? (g.sab === 'isg' ? (A.isg || {}).saat || 8 : null) : Number(g.saat), alanlar, kisiler } });
     if (error) throw new Error(`${g.egitim}: ${error.message}`);
     n += data.length; belgeler.push(...data); nolar.push(...data.filter(d => d.seri_no).map(d => d.seri_no));
@@ -803,14 +811,21 @@ V.sertifika = async view => {
     $('sb_yil').onchange = e => { SF.byil = e.target.value; bekleyenCiz(); };
     $('s_bekleyen').querySelectorAll('[data-sba]').forEach(b => b.onclick = () => { const g = L[+b.dataset.sba];
       SF.sablon = g.sab; SF.sec = new Set(g.eksik); SF.on = g; V.sertifika(view); });
-    const uret = async grup => { const r = await sertifikaGrupUret(grup, A);
-      if (r.atlanan.length) throw new Error(`${r.n} belge üretildi. Excel'de eğitimci adı olmadığı için atlananlar: ${r.atlanan.join(', ')}. Bunları "Forma aktar" ile eğitimciyi yazarak üretin.`); return r; };
+
     const onayla = grup => { const n = grup.reduce((a, g) => a + g.eksik.length, 0), sh = grup.filter(g => g.sab === 'shgm').reduce((a, g) => a + g.eksik.length, 0);
       modal(`<h3>${n} belge üretilsin mi?</h3><p>${grup.length} eğitim için ${n} belge oluşturulacak.${sh ? ` SHGM sertifikalarına sıradaki ${sh} numara verilecek.` : ''} Personel belgelerini <b>Sertifikalarım</b> ekranında görür.</p><div id="sb_m"></div>
         <div class="acts"><button class="btn" data-close>Vazgeç</button><button class="btn pri" id="sb_evet">Üret</button></div>`, (bg, close) => {
-        bg.querySelector('#sb_evet').onclick = async e => { e.target.disabled = true; e.target.textContent = 'Üretiliyor…';
-          try { const r = await uret(grup); close(); await V.sertifika(view); $('s_msg').innerHTML = `<div class="msg ok">${r.n} belge oluşturuldu${r.nolar.length ? ` (${r.nolar[0]}${r.nolar.length > 1 ? ' – ' + r.nolar[r.nolar.length - 1] : ''})` : ''}. Yazdırmak için aşağıdaki listeyi kullanın.</div>`; }
-          catch (er) { bg.querySelector('#sb_m').innerHTML = `<div class="msg err">${esc(er.message)}</div>`; e.target.disabled = false; e.target.textContent = 'Üret'; await V.sertifika(view); } }; }); };
+        bg.querySelector('#sb_evet').onclick = async e => { if (e.target.dataset.basildi) return; e.target.dataset.basildi = '1'; e.target.disabled = true; e.target.textContent = 'Üretiliyor…';
+          bg.querySelectorAll('[data-close]').forEach(x => x.disabled = true);
+          let r = null, hata = null;
+          try { r = await sertifikaGrupUret(grup, A); } catch (er) { hata = er; }
+          close(); await V.sertifika(view);
+          const nolar = r ? r.nolar : [];
+          $('s_msg').innerHTML = (r && r.n ? `<div class="msg ok">${r.n} belge oluşturuldu${nolar.length ? ` (${nolar[0]}${nolar.length > 1 ? ' – ' + nolar[nolar.length - 1] : ''})` : ''}. Yazdırmak için aşağıdaki listeyi kullanın.</div>` : '')
+            + (r && r.atlanan.length ? `<div class="msg err" style="margin-top:6px">Excel'de eğitimci adı olmadığı için üretilmedi: ${esc(r.atlanan.join(', '))}. "Forma aktar" ile eğitimciyi yazarak üretin.</div>` : '')
+            + (hata ? `<div class="msg err" style="margin-top:6px">Üretim durdu: ${esc(hata.message)}${/duplicate key|seri_no/.test(hata.message) ? ' — 14_sertifika_no_duzelt.sql dosyasını Supabase SQL Editor\'da çalıştırın.' : ''}</div>` : '')
+            || '<div class="msg info">Üretilecek yeni belge kalmamış; hepsi zaten üretilmiş.</div>';
+          $('s_msg').scrollIntoView({ block: 'center' }); }; }); };
     $('s_bekleyen').querySelectorAll('[data-sbg]').forEach(b => b.onclick = () => { const g = L[+b.dataset.sbg];
       modal(`<h3>Listeden çıkarılsın mı?</h3><p><b>${esc(g.egitim)}</b> (${fd(g.bit)}) eğitiminin belgeleri panel dışında verildiyse bu eğitimi listeden çıkarın. Yeni belge üretilmez.</p>
         <div class="acts"><button class="btn" data-close>Vazgeç</button><button class="btn pri" id="sbg_evet">Listeden çıkar</button></div>`, (bg, close) => {
