@@ -424,3 +424,5 @@ body.onizleme form button[type=submit]{pointer-events:none;opacity:.45}
 .sb-satir{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 12px;border-top:1px solid var(--line)}
 .sb-satir:first-child{border-top:0}.sb-satir>div:first-child{display:flex;flex-direction:column;min-width:0}
 @media (max-width:640px){.sb-satir{flex-direction:column;align-items:stretch}}
+.v-oto{display:flex;gap:10px;align-items:flex-start;margin-top:12px;background:var(--sunken);border-radius:10px;padding:10px 12px;cursor:pointer}
+.v-oto input{margin-top:3px;accent-color:var(--brand)}.v-oto span{display:flex;flex-direction:column}.v-oto small{color:var(--muted);font-size:13px}
