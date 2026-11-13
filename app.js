@@ -231,6 +231,10 @@ async function loadData() {
   try { const { data } = await sb.rpc('ekibim'); ekip = data || []; } catch (e) { ekip = []; }
   let bilgi = [];
   try { const { data, error } = await sb.rpc('bilgi_ekip'); bilgi = error ? [] : (data || []); } catch (e) { bilgi = []; }
+  let vBirim = [], vardiyaVar = false;
+  try { const { data, error } = await sb.from('vardiya_birim').select('kod,ad,alan,deger,sorumlu,ayar,sira').order('sira'); vBirim = error ? [] : (data || []); } catch (e) { vBirim = []; }
+  if (!admin && vBirim.length) { try { const { count, error } = await sb.from('vardiya').select('tarih', { count: 'exact', head: true }).eq('sicil', ME.profile.sicil); vardiyaVar = !error && count > 0; } catch (e) { vardiyaVar = false; } }
+  const vardiyaSorumlu = vBirim.filter(b => (b.sorumlu || []).includes(ME.profile.sicil));
   await imzalariYukle();
   const shgm = group(ed, r => [r.kod, r.egitim, r.son_tarih, r.periyot, r.bitis, r.kalan_gun, r.durum]);
   const hist = group(ek, r => [r.tarih, r.egitim, r.shgm, r.saat, r.egitmen, r.ic_dis, r.tur]);
@@ -251,7 +255,7 @@ async function loadData() {
   }).sort((a, b) => a.ad.localeCompare(b.ad, 'tr'));
   const ACT = P.filter(p => p.durum === 'Etkin');
   DATA = { P, byS: Object.fromEntries(P.map(p => [p.sicil, p])), ACT, DEPS: [...new Set(ACT.map(p => p.dep))].sort((a, b) => a.localeCompare(b, 'tr')),
-    leaveRecs, katalog: kat.sort((a, b) => a.kod.localeCompare(b.kod, 'tr')), rapor, DONEM, ekip, bilgi, alt, bakHam: bak };
+    leaveRecs, katalog: kat.sort((a, b) => a.kod.localeCompare(b.kod, 'tr')), rapor, DONEM, ekip, bilgi, alt, bakHam: bak, vBirim, vardiyaVar, vardiyaSorumlu };
 }
 
 async function imzalariYukle() {
@@ -302,13 +306,14 @@ const IK = {
   taleplerim: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M12 13v5M9.5 15.5h5',
   sertifikalarim: 'M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zM8.2 13.9 7 22l5-3 5 3-1.2-8.1',
   personelim: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  vardiya: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2', vardiyam: 'M3 5h18v16H3zM3 10h18M8 3v4M16 3v4M12 13v3l2 1.5',
   menu: 'M4 6h16M4 12h16M4 18h16', kapat: 'M6 6l12 12M18 6 6 18',
   cikis: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   sifre: 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4', tema: 'M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z',
   ara: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM21 21l-4.35-4.35',
 };
 const ikon = (k, n = 18) => `<svg class="ik" viewBox="0 0 24 24" width="${n}" height="${n}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IK[k] || IK.genel}"/></svg>`;
-const NAV_GRUP = { genel: 'Genel', personel: 'Kadro', izin: 'Kadro', egitim: 'Kadro', talepler: 'İşlemler', sertifika: 'İşlemler',
+const NAV_GRUP = { genel: 'Genel', personel: 'Kadro', izin: 'Kadro', egitim: 'Kadro', talepler: 'İşlemler', sertifika: 'İşlemler', vardiya: 'İşlemler', vardiyam: 'Benim',
   hesaplar: 'Yönetim', veri: 'Yönetim', dosyam: 'Benim', taleplerim: 'Benim', sertifikalarim: 'Benim', personelim: 'Ekibim', elkitabi: 'Kaynaklar' };
 const GRUP_SIRA = ['Genel', 'Benim', 'Kadro', 'İşlemler', 'Ekibim', 'Yönetim', 'Kaynaklar'];
 const SAYAC = { talepler: 'tcount', ekibim: 'ecount2', bilgi: 'bcount' };
@@ -322,12 +327,14 @@ function shell() {
   if (!admin && DATA.alt.length) tabs.splice(1, 0, ['personelim', 'Bağlı Personel']);
   if (DATA.ekip.length) tabs.splice(admin ? 5 : 1, 0, ['ekibim', 'Ekibim']);
   if (DATA.bilgi.length) tabs.splice(tabs.findIndex(t => t[0] === 'ekibim') + 1 || (admin ? 5 : 1), 0, ['bilgi', 'Bilgi']);
+  if (admin || DATA.vardiyaSorumlu.length) tabs.push(['vardiya', 'Vardiya Planı']);
+  if (!admin && DATA.vardiyaVar) tabs.push(['vardiyam', 'Vardiyam']);
   const grup = v => NAV_GRUP[v] || (admin ? 'İşlemler' : 'Ekibim');
   tabs = tabs.map((t, i) => [...t, grup(t[0]), i]).sort((a, b) => GRUP_SIRA.indexOf(a[2]) - GRUP_SIRA.indexOf(b[2]) || a[3] - b[3]);
   let son = null;
   const navHtml = tabs.map(([v, t, g], i) => { const bas = g !== son && i > 0 ? `<div class="nav-grup">${g}</div>` : ''; son = g;
     return `${bas}<a href="#${v}" data-v="${v}">${ikon(v)}<span class="nav-ad">${t}</span>${SAYAC[v] ? `<span class="nav-say" id="${SAYAC[v]}"></span>` : ''}</a>`; }).join('');
-  const altOn = (admin ? ['genel', 'personel', 'talepler'] : ['dosyam', 'taleplerim', 'sertifikalarim']).map(v => tabs.find(t => t[0] === v)).filter(Boolean);
+  const altOn = (admin ? ['genel', 'personel', 'talepler'] : ['dosyam', 'vardiyam', 'taleplerim', 'sertifikalarim']).map(v => tabs.find(t => t[0] === v)).filter(Boolean).slice(0, 3);
   const adim = me ? me.ad : ME.profile.sicil, rolAd = SALT() ? 'İzleyici · salt okunur' : admin ? 'Yönetici' : (me && me.unvan) || 'Personel';
   const bas = String(adim).split(' ').filter(Boolean).map(x => x[0]).slice(0, 2).join('');
   app.innerHTML = `<div class="kabuk">
@@ -351,7 +358,7 @@ function shell() {
   </div></header>
   <main class="wrap" id="view"></main>
   </div>
-  <nav class="alt-cubuk" id="altbar" aria-label="Hızlı menü">${altOn.map(([v, t]) => `<a href="#${v}" data-v="${v}">${ikon(v, 20)}<span>${esc(t.replace('İzin Taleplerim', 'İzinlerim').replace('Sertifikalarım', 'Belgelerim').replace('Genel Bakış', 'Genel'))}</span></a>`).join('')}
+  <nav class="alt-cubuk" id="altbar" aria-label="Hızlı menü">${altOn.map(([v, t]) => `<a href="#${v}" data-v="${v}">${ikon(v, 20)}<span>${esc(t.replace('İzin Taleplerim', 'İzinlerim').replace('Sertifikalarım', 'Belgelerim').replace('Genel Bakış', 'Genel').replace('Vardiya Planı', 'Vardiya'))}</span></a>`).join('')}
     <button type="button" id="altMenu">${ikon('menu', 20)}<span>Menü</span></button></nav>
   </div>`;
   $('themeBtn').onclick = temaDegistir; $('outBtn').onclick = cikis; $('pwBtn').onclick = () => sifreDegistirView(false);
@@ -396,9 +403,12 @@ function route() {
   let h = (location.hash || '').slice(1);
   const view = $('view'); let tab = h;
   if (h !== 'elkitabi' && ekBirak) { ekBirak(); ekBirak = null; }
+  if (h !== 'vardiya' && typeof VR !== 'undefined' && VR && VR.kirli && $('v_tablo')) { const hedef = location.hash; history.replaceState(null, '', '#vardiya'); vrDegis(() => { location.hash = hedef; }); return; }
   if (h === 'elkitabi') { elKitabiView(view); }
   else if (h === 'ekibim' && DATA.ekip.length) { ekibimView(view); }
   else if (h === 'bilgi' && DATA.bilgi.length) { bilgiView(view); }
+  else if (h === 'vardiya' && (admin || DATA.vardiyaSorumlu.length)) { vardiyaView(view); }
+  else if (h === 'vardiyam' && !admin) { vardiyamView(view); }
   else if (!admin && h === 'personelim' && DATA.alt.length) { personelimView(view); }
   else if (!admin && h.startsWith('p-') && DATA.alt.includes(h.slice(2))) { view.innerHTML = kisiView(h.slice(2), false, true); tab = 'personelim'; }
   else if (!admin) {

@@ -28,7 +28,7 @@ function onizIstemci(real, X, A, tum) {   // tum: izleyici gibi her şeyi gören
     if (t === 'personel') d = d.map(x => x.sicil === X ? x : (({ tc_kimlik, notu, ...k }) => k)(x));
     return { ...r, data: d, count: d.length };
   };
-  const SICILLI = new Set(['personel', 'izin_bakiye', 'izin_kayit', 'egitim_durum', 'egitim_kayit', 'izin_talep', 'sertifika', 'sertifika_belge', 'el_kitabi_onay', 'ozluk_evrak', 'profiles']);
+  const SICILLI = new Set(['personel', 'izin_bakiye', 'izin_kayit', 'egitim_durum', 'egitim_kayit', 'izin_talep', 'sertifika', 'sertifika_belge', 'el_kitabi_onay', 'ozluk_evrak', 'profiles', 'vardiya']);
   const gorL = [...gor];
   const sar = (q, t, st) => new Proxy(q, {
     get(o, k) {
