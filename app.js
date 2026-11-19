@@ -130,6 +130,7 @@ const SAHNE = `<svg class="scene" viewBox="0 0 800 900" preserveAspectRatio="xMi
     ${UCAK}</g></g>
 </svg>`;
 
+const GIRIS_BTN = '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true" style="transform:rotate(90deg)"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>Giriş yap';
 function loginView(msg) {
   app.innerHTML = `<div class="auth">
   <section class="auth-art">${SAHNE}
@@ -140,12 +141,13 @@ function loginView(msg) {
   </section>
   <section class="auth-side"><div class="auth-box">
     <img class="logo" src="logo.png" alt="Zafer Airport">
-    <h2>Giriş yap</h2><p class="sub">Sicil numaranız ve şifrenizle giriş yapın.</p>
+    <h2>Giriş yap</h2><p class="sub">İK Paneli · Sicil numaranız ve şifrenizle giriş yapın.</p>
+    <div class="auth-ayrac" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg></div>
     <form class="form" id="lf" autocomplete="on">
       <label>Sicil No<input id="ls" name="username" inputmode="numeric" autocomplete="username" placeholder="Örn. 31776" required></label>
       <label>Şifre<span class="pwwrap"><input id="lp" name="password" type="password" autocomplete="current-password" required><button type="button" id="lpt" aria-label="Şifreyi göster">Göster</button></span></label>
       ${msg ? `<div class="msg err">${esc(msg)}</div>` : ''}<div id="lm"></div>
-      <button class="btn pri" type="submit" id="lb">Giriş yap</button>
+      <button class="btn pri" type="submit" id="lb">${GIRIS_BTN}</button>
       <p class="mini" style="margin:0">Şifrenizi unuttuysanız İnsan &amp; Kültür birimine başvurun.</p>
     </form>
     <div class="auth-foot"><span>Zafer Havalimanı · İçtaş</span><span>LTBZ / KZR</span></div>
@@ -156,7 +158,7 @@ function loginView(msg) {
     const sicil = $('ls').value.trim(), pw = $('lp').value;
     $('lb').disabled = true; $('lb').textContent = 'Giriş yapılıyor…'; $('lm').innerHTML = '';
     const { data, error } = await sb.auth.signInWithPassword({ email: emailOf(sicil), password: pw });
-    $('lb').disabled = false; $('lb').textContent = 'Giriş yap';
+    $('lb').disabled = false; $('lb').innerHTML = GIRIS_BTN;
     if (error) { $('lm').innerHTML = `<div class="msg err">Sicil no veya şifre hatalı.</div>`; return; }
     await afterLogin(data.user);
   };
